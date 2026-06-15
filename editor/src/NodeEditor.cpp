@@ -1,0 +1,174 @@
+#include <QBlock/NodeEditor.h>
+#include <QBlock/BuiltinNodes.h>
+#include <QBlock/Serializer.h>
+#include <QAction>
+#include <QFile>
+#include <QFileDialog>
+#include <QJsonDocument>
+#include <QMessageBox>
+
+namespace QBlock {
+
+NodeEditor::NodeEditor(QWidget* parent)
+    : QWidget(parent)
+    , nodeFactory_(Builtin::createBuiltinNode)
+{
+    setupUI();
+    scene_->setGraph(&defaultGraph_);
+}
+
+NodeEditor::~NodeEditor() = default;
+
+void NodeEditor::setupUI() {
+    layout_ = new QVBoxLayout(this);
+    layout_->setContentsMargins(0, 0, 0, 0);
+    layout_->setSpacing(0);
+
+    setupToolbar();
+
+    scene_ = new EditorScene(this);
+    view_ = new QGraphicsView(scene_, this);
+    view_->setRenderHint(QPainter::Antialiasing);
+    view_->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+    view_->setDragMode(QGraphicsView::ScrollHandDrag);
+    view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view_->setFrameShape(QFrame::NoFrame);
+
+    layout_->addWidget(view_);
+
+    // Connect signals
+    connect(scene_, &EditorScene::graphModified, this, &NodeEditor::graphModified);
+}
+
+void NodeEditor::setupToolbar() {
+    toolbar_ = new QToolBar("Tools", this);
+    toolbar_->setIconSize(QSize(16, 16));
+    toolbar_->setStyleSheet(
+        "QToolBar { background: #333; border: none; padding: 2px; spacing: 4px; }"
+        "QToolButton { color: #ccc; background: #444; border: 1px solid #555; "
+        "  border-radius: 3px; padding: 4px 8px; margin: 1px; }"
+        "QToolButton:hover { background: #555; color: #fff; }"
+    );
+
+    auto* newAct = toolbar_->addAction("New");
+    connect(newAct, &QAction::triggered, this, &NodeEditor::newGraph);
+
+    auto* loadAct = toolbar_->addAction("Open");
+    connect(loadAct, &QAction::triggered, this, [this]() {
+        QString path = QFileDialog::getOpenFileName(this, "Open Graph", {}, "QBlock (*.qblock.json)");
+        if (!path.isEmpty()) loadFromFile(path);
+    });
+
+    auto* saveAct = toolbar_->addAction("Save");
+    connect(saveAct, &QAction::triggered, this, [this]() {
+        QString path = QFileDialog::getSaveFileName(this, "Save Graph", {}, "QBlock (*.qblock.json)");
+        if (!path.isEmpty()) saveToFile(path);
+    });
+
+    toolbar_->addSeparator();
+
+    auto* execAct = toolbar_->addAction("Run (Dataflow)");
+    connect(execAct, &QAction::triggered, this, &NodeEditor::executeDataflow);
+
+    auto* execSigAct = toolbar_->addAction("Run (Signal)");
+    connect(execSigAct, &QAction::triggered, this, [this]() { executeSignal(); });
+
+    toolbar_->addSeparator();
+
+    auto* fitAct = toolbar_->addAction("Fit View");
+    connect(fitAct, &QAction::triggered, this, &NodeEditor::fitToScreen);
+
+    layout_->addWidget(toolbar_);
+}
+
+void NodeEditor::newGraph() {
+    defaultGraph_.clear();
+    scene_->setGraph(&defaultGraph_);
+    emit graphModified();
+}
+
+bool NodeEditor::loadFromFile(const QString& filePath) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, "Error", "Cannot open file: " + filePath);
+        return false;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+
+    auto result = Serializer::fromJson(doc, nodeFactory_);
+    if (!result) {
+        QMessageBox::warning(this, "Error", "Failed to parse graph file.");
+        return false;
+    }
+
+    // Reset the graph with loaded data
+    *graph() = std::move(*result);
+    scene_->setGraph(graph());
+    emit graphModified();
+    fitToScreen();
+    return true;
+}
+
+bool NodeEditor::saveToFile(const QString& filePath) const {
+    if (!graph()) return false;
+
+    scene_->syncPositionsToGraph();
+    QByteArray data = Serializer::toBytes(*graph());
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly)) {
+        QMessageBox::warning(const_cast<NodeEditor*>(this), "Error", "Cannot write file: " + filePath);
+        return false;
+    }
+
+    file.write(data);
+    file.close();
+    return true;
+}
+
+void NodeEditor::executeDataflow() {
+    auto* g = graph();
+    if (!g || g->empty()) return;
+    scene_->syncPositionsToGraph();
+    engine_.setMode(ExecutionMode::Dataflow);
+    engine_.executeDataflow(*g);
+}
+
+void NodeEditor::executeSignal(Node* entryNode) {
+    auto* g = graph();
+    if (!g || g->empty()) return;
+    scene_->syncPositionsToGraph();
+    engine_.setMode(ExecutionMode::Signal);
+
+    if (!entryNode && !g->nodes().empty()) {
+        entryNode = g->nodes().front().get();
+    }
+
+    if (entryNode) {
+        engine_.executeSignal(*g, entryNode);
+    }
+}
+
+Node* NodeEditor::addNode(const std::string& typeName, float x, float y) {
+    auto* g = graph();
+    if (!g || !nodeFactory_) return nullptr;
+
+    auto node = nodeFactory_(typeName);
+    if (!node) return nullptr;
+
+    node->setPosition(x, y);
+    auto* ptr = g->addNode(std::move(node));
+    scene_->addNodeWidget(ptr);
+    emit graphModified();
+    return ptr;
+}
+
+void NodeEditor::fitToScreen() {
+    view_->fitInView(scene_->itemsBoundingRect().adjusted(-50, -50, 50, 50),
+                     Qt::KeepAspectRatio);
+}
+
+} // namespace QBlock

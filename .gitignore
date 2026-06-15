@@ -1,0 +1,32 @@
+# Build
+build/
+*.exe
+*.obj
+*.lib
+*.a
+*.o
+*.so
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.ninja
+*.log
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Qt
+moc_*
+qrc_*
+ui_*
+*_autogen/
+
+# OS
+Thumbs.db
+.DS_Store

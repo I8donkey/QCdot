@@ -4,6 +4,8 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QKeyEvent>
 #include <QPainter>
+#include <QPixmap>
+#include <QImage>
 
 namespace QBlock {
 
@@ -12,6 +14,21 @@ EditorScene::EditorScene(QObject* parent)
 {
     setSceneRect(-2000, -2000, 4000, 4000);
     setBackgroundBrush(QColor(28, 28, 34));
+
+    // One-time warmup: force QImage/QPixmap paint engine init before first paint
+    // (MinGW Qt6 workaround: paint device returns engine == 0, type: 3)
+    static bool warmupDone = false;
+    if (!warmupDone) {
+        warmupDone = true;
+        QPixmap pm(1, 1);
+        QImage img(1, 1, QImage::Format_ARGB32);
+        QPainter p(&pm);
+        p.fillRect(0, 0, 1, 1, Qt::black);
+        p.end();
+        QPainter p2(&img);
+        p2.fillRect(0, 0, 1, 1, Qt::black);
+        p2.end();
+    }
 }
 
 EditorScene::~EditorScene() = default;

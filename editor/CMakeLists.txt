@@ -5,11 +5,13 @@ add_library(QBlockEditor STATIC
     include/QBlock/NodeWidget.h
     include/QBlock/EditorScene.h
     include/QBlock/NodeEditor.h
+    include/QBlock/Translator.h
     src/PortWidget.cpp
     src/ConnectionWidget.cpp
     src/NodeWidget.cpp
     src/EditorScene.cpp
     src/NodeEditor.cpp
+    src/Translator.cpp
 )
 
 target_include_directories(QBlockEditor PUBLIC

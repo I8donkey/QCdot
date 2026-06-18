@@ -30,3 +30,7 @@ ui_*
 # OS
 Thumbs.db
 .DS_Store
+
+# Debug logs
+debug-qpainter-engine-error.md
+.dbg/

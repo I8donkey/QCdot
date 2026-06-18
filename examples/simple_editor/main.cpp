@@ -1,28 +1,34 @@
 #include <QApplication>
 #include <QBlock/NodeEditor.h>
+#include <QBlock/Translator.h>
 #include <QBlock/BuiltinNodes.h>
 #include "NodePalette.h"
 #include <QMainWindow>
 #include <QDockWidget>
+#include <QPixmap>
+#include <QImage>
 
 /// ============================================================================
 /// QBlock Simple Editor Example
 ///
 /// A minimal graphical programming editor demonstrating the QBlock engine.
 /// Features:
-///   - Dark-themed node editor canvas
+///   - Dark-themed node editor canvas (English / Chinese bilingual)
 ///   - Node palette with built-in nodes
 ///   - Double-click node creation
 ///   - Connection creation via port dragging
 ///   - Dataflow and Signal execution modes
-///   - Save/Load graph to JSON
+///   - Save/Load graph to compressed .qblock files
 /// ============================================================================
 
 int main(int argc, char* argv[]) {
+    qputenv("QSG_RHI_BACKEND", "software");
     QApplication app(argc, argv);
 
+    // Warmup: Initialize QImage/QPixmap paint engines (MinGW Qt6 workaround)
+    { QPixmap _pm(1, 1); QImage _img(1, 1, QImage::Format_ARGB32); (void)_pm; (void)_img; }
+
     QMainWindow mainWindow;
-    mainWindow.setWindowTitle("QBlock - Visual Programming Editor");
     mainWindow.resize(1280, 800);
     mainWindow.setStyleSheet("QMainWindow { background: #1c1c22; }");
 
@@ -32,7 +38,7 @@ int main(int argc, char* argv[]) {
 
     // Create node palette as dock widget
     auto* palette = new NodePalette(editor);
-    auto* dock = new QDockWidget("Node Palette", &mainWindow);
+    auto* dock = new QDockWidget(QBlock::Translator::tr("palette.title"), &mainWindow);
     dock->setWidget(palette);
     dock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
     dock->setStyleSheet(
@@ -40,6 +46,13 @@ int main(int argc, char* argv[]) {
         "QDockWidget::title { background: #333; padding: 4px; }"
     );
     mainWindow.addDockWidget(Qt::LeftDockWidgetArea, dock);
+
+    // Update dock title and main window title on language change
+    mainWindow.setWindowTitle(QBlock::Translator::tr("app.title"));
+    QObject::connect(editor, &QBlock::NodeEditor::languageChanged, &mainWindow, [&]() {
+        mainWindow.setWindowTitle(QBlock::Translator::tr("app.title"));
+        dock->setWindowTitle(QBlock::Translator::tr("palette.title"));
+    });
 
     // Create a simple demo graph
     auto* graph = editor->graph();

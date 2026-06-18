@@ -59,6 +59,8 @@ public:
 signals:
     void nodeSelected(Node* node);
     void graphModified();
+    /// Emitted when UI language changes (for external widgets to refresh).
+    void languageChanged();
 
 private:
     void setupUI();
@@ -68,9 +70,10 @@ private:
     QGraphicsView* view_;
     ExecutionEngine engine_;
     NodeFactory nodeFactory_;
-    NodeGraph defaultGraph_;  // Default graph owned by the editor
+    NodeGraph defaultGraph_;
     QVBoxLayout* layout_;
     QToolBar* toolbar_;
+    QAction* langAct_ = nullptr;
 };
 
 } // namespace QBlock

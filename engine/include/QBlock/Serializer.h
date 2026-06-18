@@ -5,14 +5,22 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QByteArray>
+#include <QFile>
 #include <optional>
 
 namespace QBlock {
 
 /// JSON serialization for saving/loading node graphs.
+/// Default storage uses qCompress with a 4-byte magic header.
 class Serializer final {
 public:
-    /// Serialize a graph to a JSON string.
+    /// Magic header bytes for compressed QBlock files.
+    static constexpr quint32 kMagicCompressed  = 0x51424C43; // "QBLC"
+    /// Magic for uncompressed JSON (legacy).
+    static constexpr quint32 kMagicUncompressed = 0x51424C4A; // "QBLJ"
+
+    /// Serialize a graph to a QJsonDocument.
     static QJsonDocument toJson(const NodeGraph& graph) {
         QJsonObject root;
         root[QStringLiteral("version")] = 1;
@@ -63,8 +71,7 @@ public:
         return QJsonDocument(root);
     }
 
-    /// Deserialize a graph from a JSON document.
-    /// Nodes are created via a factory function: given a type name, return a new node.
+    /// Deserialize a graph from a QJsonDocument.
     template <typename Factory>
     static std::optional<NodeGraph> fromJson(const QJsonDocument& doc, Factory nodeFactory) {
         if (!doc.isObject()) return std::nullopt;
@@ -92,7 +99,7 @@ public:
                 node->setLabel(obj[QStringLiteral("label")].toString().toStdString());
 
             auto* ptr = graph.addNode(std::move(node));
-            ptr->setId(id); // override the auto-assigned ID
+            ptr->setId(id);
             nodeMap[id] = ptr;
         }
 
@@ -124,9 +131,56 @@ public:
         return graph;
     }
 
-    /// Convenience: serialize to string.
+    /// Serialize to compressed bytes (default).
+    /// Format: [4-byte magic] [4-byte original size] [qCompressed JSON]
     static QByteArray toBytes(const NodeGraph& graph) {
-        return toJson(graph).toJson(QJsonDocument::Indented);
+        QJsonDocument doc = toJson(graph);
+        QByteArray json = doc.toJson(QJsonDocument::Compact);
+        QByteArray compressed = qCompress(json);
+
+        QByteArray result;
+        QDataStream stream(&result, QIODevice::WriteOnly);
+        stream.setByteOrder(QDataStream::LittleEndian);
+        stream << kMagicCompressed;
+        stream << static_cast<quint32>(json.size());
+        result.append(compressed);
+        return result;
+    }
+
+    /// Serialize to uncompressed JSON bytes (legacy).
+    static QByteArray toBytesUncompressed(const NodeGraph& graph) {
+        QJsonDocument doc = toJson(graph);
+        return doc.toJson(QJsonDocument::Indented);
+    }
+
+    /// Deserialize from bytes (auto-detects compressed vs uncompressed).
+    template <typename Factory>
+    static std::optional<NodeGraph> fromBytes(const QByteArray& data, Factory nodeFactory) {
+        if (data.isEmpty()) return std::nullopt;
+
+        // Check for compressed magic header
+        if (data.size() >= 8) {
+            QDataStream stream(data);
+            stream.setByteOrder(QDataStream::LittleEndian);
+            quint32 magic;
+            stream >> magic;
+
+            if (magic == kMagicCompressed) {
+                quint32 originalSize;
+                stream >> originalSize;
+                // Remaining bytes are the compressed data (skip 8 header bytes)
+                QByteArray compressed = data.mid(8);
+                QByteArray json = qUncompress(compressed);
+                if (json.isEmpty()) return std::nullopt;
+                QJsonDocument doc = QJsonDocument::fromJson(json);
+                return fromJson(doc, nodeFactory);
+            }
+        }
+
+        // Fallback: try as plain JSON (legacy format or .qblock.json)
+        QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (doc.isNull()) return std::nullopt;
+        return fromJson(doc, nodeFactory);
     }
 };
 

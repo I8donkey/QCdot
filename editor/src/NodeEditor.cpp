@@ -1,6 +1,7 @@
 #include <QBlock/NodeEditor.h>
 #include <QBlock/BuiltinNodes.h>
 #include <QBlock/Serializer.h>
+#include <QBlock/Translator.h>
 #include <QAction>
 #include <QFile>
 #include <QFileDialog>
@@ -51,33 +52,60 @@ void NodeEditor::setupToolbar() {
         "QToolButton:hover { background: #555; color: #fff; }"
     );
 
-    auto* newAct = toolbar_->addAction("New");
+    // Cache action pointers for language refresh
+    auto* newAct = toolbar_->addAction(Translator::tr("toolbar.new"));
     connect(newAct, &QAction::triggered, this, &NodeEditor::newGraph);
 
-    auto* loadAct = toolbar_->addAction("Open");
+    auto* loadAct = toolbar_->addAction(Translator::tr("toolbar.open"));
     connect(loadAct, &QAction::triggered, this, [this]() {
-        QString path = QFileDialog::getOpenFileName(this, "Open Graph", {}, "QBlock (*.qblock.json)");
+        QString path = QFileDialog::getOpenFileName(
+            this, Translator::tr("dialog.open_title"), {},
+            Translator::tr("dialog.filter"));
         if (!path.isEmpty()) loadFromFile(path);
     });
 
-    auto* saveAct = toolbar_->addAction("Save");
+    auto* saveAct = toolbar_->addAction(Translator::tr("toolbar.save"));
     connect(saveAct, &QAction::triggered, this, [this]() {
-        QString path = QFileDialog::getSaveFileName(this, "Save Graph", {}, "QBlock (*.qblock.json)");
+        QString path = QFileDialog::getSaveFileName(
+            this, Translator::tr("dialog.save_title"), {},
+            Translator::tr("dialog.filter"));
         if (!path.isEmpty()) saveToFile(path);
     });
 
     toolbar_->addSeparator();
 
-    auto* execAct = toolbar_->addAction("Run (Dataflow)");
+    auto* execAct = toolbar_->addAction(Translator::tr("toolbar.run_dataflow"));
     connect(execAct, &QAction::triggered, this, &NodeEditor::executeDataflow);
 
-    auto* execSigAct = toolbar_->addAction("Run (Signal)");
+    auto* execSigAct = toolbar_->addAction(Translator::tr("toolbar.run_signal"));
     connect(execSigAct, &QAction::triggered, this, [this]() { executeSignal(); });
 
     toolbar_->addSeparator();
 
-    auto* fitAct = toolbar_->addAction("Fit View");
+    auto* fitAct = toolbar_->addAction(Translator::tr("toolbar.fit_view"));
     connect(fitAct, &QAction::triggered, this, &NodeEditor::fitToScreen);
+
+    toolbar_->addSeparator();
+
+    // Language toggle button
+    langAct_ = toolbar_->addAction(Translator::tr("toolbar.lang"));
+    connect(langAct_, &QAction::triggered, this, [this]() {
+        QString newLang = (Translator::currentLanguage() == QStringLiteral("en"))
+                          ? QStringLiteral("zh") : QStringLiteral("en");
+        Translator::setLanguage(newLang);
+    });
+
+    // Refresh toolbar labels when language changes
+    Translator::onLanguageChanged([this, newAct, loadAct, saveAct, execAct, execSigAct, fitAct]() {
+        newAct->setText(Translator::tr("toolbar.new"));
+        loadAct->setText(Translator::tr("toolbar.open"));
+        saveAct->setText(Translator::tr("toolbar.save"));
+        execAct->setText(Translator::tr("toolbar.run_dataflow"));
+        execSigAct->setText(Translator::tr("toolbar.run_signal"));
+        fitAct->setText(Translator::tr("toolbar.fit_view"));
+        langAct_->setText(Translator::tr("toolbar.lang"));
+        emit languageChanged();
+    });
 
     layout_->addWidget(toolbar_);
 }
@@ -91,20 +119,21 @@ void NodeEditor::newGraph() {
 bool NodeEditor::loadFromFile(const QString& filePath) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(this, "Error", "Cannot open file: " + filePath);
+        QMessageBox::warning(this, QStringLiteral("Error"),
+                             Translator::tr("dialog.open_failed") + filePath);
         return false;
     }
 
-    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    QByteArray data = file.readAll();
     file.close();
 
-    auto result = Serializer::fromJson(doc, nodeFactory_);
+    auto result = Serializer::fromBytes(data, nodeFactory_);
     if (!result) {
-        QMessageBox::warning(this, "Error", "Failed to parse graph file.");
+        QMessageBox::warning(this, QStringLiteral("Error"),
+                             Translator::tr("dialog.parse_failed"));
         return false;
     }
 
-    // Reset the graph with loaded data
     *graph() = std::move(*result);
     scene_->setGraph(graph());
     emit graphModified();
@@ -120,7 +149,8 @@ bool NodeEditor::saveToFile(const QString& filePath) const {
 
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly)) {
-        QMessageBox::warning(const_cast<NodeEditor*>(this), "Error", "Cannot write file: " + filePath);
+        QMessageBox::warning(const_cast<NodeEditor*>(this), QStringLiteral("Error"),
+                             Translator::tr("dialog.write_failed") + filePath);
         return false;
     }
 

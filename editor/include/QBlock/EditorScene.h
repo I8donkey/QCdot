@@ -2,11 +2,13 @@
 #define QBLOCK_EDITOR_SCENE_H
 
 #include <QBlock/NodeGraph.h>
+#include <QBlock/ThemeManager.h>
 #include "NodeWidget.h"
 #include "PortWidget.h"
 #include "ConnectionWidget.h"
 #include <QGraphicsScene>
 #include <unordered_map>
+#include <functional>
 
 namespace QBlock {
 
@@ -45,10 +47,17 @@ public:
     void clear();
 
     // ---- Port drag handling ----
-    // Called by PortWidget during connection dragging
     void startPortDrag(PortWidget* source);
     void updatePortDrag(const QPointF& scenePos);
     void endPortDrag(const QPointF& scenePos);
+
+    /// Set a callback to list all available node types (for blank-area popup).
+    using TypeLister = std::function<std::vector<std::string>()>;
+    void setTypeLister(TypeLister lister) { typeLister_ = std::move(lister); }
+
+    /// Set a callback to create/add a node (for blank-area popup).
+    using NodeCreator = std::function<Node*(const std::string& type, float x, float y)>;
+    void setNodeCreator(NodeCreator creator) { nodeCreator_ = std::move(creator); }
 
 signals:
     void nodeSelected(Node* node);
@@ -70,7 +79,12 @@ private:
     PortWidget* dragSourcePort_ = nullptr;
     TempConnectionWidget* tempConnection_ = nullptr;
 
+    // Callbacks for blank-area popup
+    TypeLister typeLister_;
+    NodeCreator nodeCreator_;
+
     void cleanupTempConnection();
+    void showNodePicker(const QPointF& scenePos);
 };
 
 } // namespace QBlock

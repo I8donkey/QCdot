@@ -48,9 +48,23 @@ const QHash<QString, QHash<QString, QString>>& Translator::data() {
             {QStringLiteral("toolbar.run_dataflow"), QStringLiteral("Run (Dataflow)")},
             {QStringLiteral("toolbar.run_signal"),   QStringLiteral("Run (Signal)")},
             {QStringLiteral("toolbar.fit_view"),     QStringLiteral("Fit View")},
-            {QStringLiteral("toolbar.lang"),    QStringLiteral("中文")},
+            {QStringLiteral("toolbar.lang"),    QStringLiteral("Language")},
+            {QStringLiteral("toolbar.settings"), QStringLiteral("Settings")},
+            {QStringLiteral("toolbar.theme_dark"),   QStringLiteral("Dark Theme")},
+            {QStringLiteral("toolbar.theme_light"),  QStringLiteral("Light Theme")},
+            {QStringLiteral("toolbar.export_cpp"),   QStringLiteral("Export as C++")},
 
-            // ---- Palette ----
+            // ---- Dialogs ----
+            {QStringLiteral("dialog.open_title"), QStringLiteral("Open Graph")},
+            {QStringLiteral("dialog.save_title"), QStringLiteral("Save Graph")},
+            {QStringLiteral("dialog.export_title"),QStringLiteral("Export as C++ Source")},
+            {QStringLiteral("dialog.filter"),         QStringLiteral("QCdot (*.qcd)")},
+            {QStringLiteral("dialog.export_empty"),   QStringLiteral("Graph is empty. Nothing to export.")},
+
+            // ---- Node Picker ----
+            {QStringLiteral("picker.title"),  QStringLiteral("Select Node")},
+            {QStringLiteral("picker.prompt"), QStringLiteral("Select a node to create and connect:")},
+            {QStringLiteral("picker.cancel"), QStringLiteral("Cancel")},
             {QStringLiteral("palette.title"),   QStringLiteral("Node Palette")},
             {QStringLiteral("palette.nodes"),   QStringLiteral("Nodes")},
 
@@ -125,14 +139,6 @@ const QHash<QString, QHash<QString, QString>>& Translator::data() {
             {QStringLiteral("node.FileReadBinary"),   QStringLiteral("FileReadBinary")},
             {QStringLiteral("node.RandomInt"),        QStringLiteral("RandomInt")},
             {QStringLiteral("node.Sleep"),            QStringLiteral("Sleep")},
-
-            // ---- File dialogs ----
-            {QStringLiteral("dialog.open_title"),     QStringLiteral("Open Graph")},
-            {QStringLiteral("dialog.save_title"),     QStringLiteral("Save Graph")},
-            {QStringLiteral("dialog.open_failed"),    QStringLiteral("Cannot open file: ")},
-            {QStringLiteral("dialog.parse_failed"),   QStringLiteral("Failed to parse graph file.")},
-            {QStringLiteral("dialog.write_failed"),   QStringLiteral("Cannot write file: ")},
-            {QStringLiteral("dialog.filter"),         QStringLiteral("QBlock (*.qblock)")},
         }},
 
         {QStringLiteral("zh"), {
@@ -224,13 +230,27 @@ const QHash<QString, QHash<QString, QString>>& Translator::data() {
             {QStringLiteral("node.RandomInt"),        QStringLiteral("随机整数")},
             {QStringLiteral("node.Sleep"),            QStringLiteral("延时等待")},
 
+            // ---- Toolbar ----
+            {QStringLiteral("toolbar.lang"),      QStringLiteral("切换语言")},
+            {QStringLiteral("toolbar.settings"),  QStringLiteral("设置")},
+            {QStringLiteral("toolbar.theme_dark"),    QStringLiteral("暗色主题")},
+            {QStringLiteral("toolbar.theme_light"),   QStringLiteral("亮色主题")},
+            {QStringLiteral("toolbar.export_cpp"),    QStringLiteral("导出为 C++")},
+
+            // ---- Node Picker ----
+            {QStringLiteral("picker.title"),  QStringLiteral("选择节点")},
+            {QStringLiteral("picker.prompt"), QStringLiteral("选择一个节点来创建并连接：")},
+            {QStringLiteral("picker.cancel"), QStringLiteral("取消")},
+
             // ---- File dialogs ----
             {QStringLiteral("dialog.open_title"),     QStringLiteral("打开流程图")},
             {QStringLiteral("dialog.save_title"),     QStringLiteral("保存流程图")},
+            {QStringLiteral("dialog.export_title"),   QStringLiteral("导出为 C++ 源码")},
+            {QStringLiteral("dialog.export_empty"),   QStringLiteral("流程图为空，无可导出的内容。")},
             {QStringLiteral("dialog.open_failed"),    QStringLiteral("无法打开文件：")},
             {QStringLiteral("dialog.parse_failed"),   QStringLiteral("解析流程图文件失败。")},
             {QStringLiteral("dialog.write_failed"),   QStringLiteral("无法写入文件：")},
-            {QStringLiteral("dialog.filter"),         QStringLiteral("QBlock 流程图 (*.qblock)")},
+            {QStringLiteral("dialog.filter"),         QStringLiteral("QCdot 流程图 (*.qcd)")},
         }}
     };
     return s_data;

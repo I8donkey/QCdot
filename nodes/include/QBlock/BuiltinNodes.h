@@ -244,6 +244,7 @@ public:
 class ConstantIntNode final : public Node {
 public:
     ConstantIntNode() {
+        addInput("value", DataType::Integer);
         addOutput("value", DataType::Integer);
     }
     std::string typeName() const override { return "ConstantInt"; }
@@ -252,8 +253,14 @@ public:
     void setValue(int64_t v) { value_ = v; }
     int64_t value() const { return value_; }
 
-    void process(const VariantMap&, VariantMap& out) override {
-        out["value"] = Variant(value_);
+    void process(const VariantMap& in, VariantMap& out) override {
+        // If input is connected, pass through; otherwise use internal value
+        auto it = in.find("value");
+        if (it != in.end() && it->second.isValid()) {
+            out["value"] = it->second;
+        } else {
+            out["value"] = Variant(value_);
+        }
     }
 
 private:
@@ -263,6 +270,7 @@ private:
 class ConstantFloatNode final : public Node {
 public:
     ConstantFloatNode() {
+        addInput("value", DataType::Float);
         addOutput("value", DataType::Float);
     }
     std::string typeName() const override { return "ConstantFloat"; }
@@ -271,8 +279,13 @@ public:
     void setValue(double v) { value_ = v; }
     double value() const { return value_; }
 
-    void process(const VariantMap&, VariantMap& out) override {
-        out["value"] = Variant(value_);
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto it = in.find("value");
+        if (it != in.end() && it->second.isValid()) {
+            out["value"] = it->second;
+        } else {
+            out["value"] = Variant(value_);
+        }
     }
 
 private:
@@ -282,6 +295,7 @@ private:
 class ConstantBoolNode final : public Node {
 public:
     ConstantBoolNode() {
+        addInput("value", DataType::Boolean);
         addOutput("value", DataType::Boolean);
     }
     std::string typeName() const override { return "ConstantBool"; }
@@ -290,8 +304,13 @@ public:
     void setValue(bool v) { value_ = v; }
     bool value() const { return value_; }
 
-    void process(const VariantMap&, VariantMap& out) override {
-        out["value"] = Variant(value_);
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto it = in.find("value");
+        if (it != in.end() && it->second.isValid()) {
+            out["value"] = it->second;
+        } else {
+            out["value"] = Variant(value_);
+        }
     }
 
 private:
@@ -301,6 +320,7 @@ private:
 class ConstantStringNode final : public Node {
 public:
     ConstantStringNode() {
+        addInput("value", DataType::String);
         addOutput("value", DataType::String);
     }
     std::string typeName() const override { return "ConstantString"; }
@@ -309,8 +329,13 @@ public:
     void setValue(const std::string& v) { value_ = v; }
     std::string value() const { return value_; }
 
-    void process(const VariantMap&, VariantMap& out) override {
-        out["value"] = Variant(value_);
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto it = in.find("value");
+        if (it != in.end() && it->second.isValid()) {
+            out["value"] = it->second;
+        } else {
+            out["value"] = Variant(value_);
+        }
     }
 
 private:

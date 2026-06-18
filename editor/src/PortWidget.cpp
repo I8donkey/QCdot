@@ -2,6 +2,7 @@
 #include <QBlock/ConnectionWidget.h>
 #include <QBlock/NodeWidget.h>
 #include <QBlock/Translator.h>
+#include <QBlock/ThemeManager.h>
 #include <QCursor>
 #include <QPainter>
 #include <QPen>
@@ -37,23 +38,25 @@ void PortWidget::removeConnection(ConnectionWidget* conn) {
 }
 
 QRectF PortWidget::boundingRect() const {
-    // Get base ellipse rect
     QRectF base = QGraphicsEllipseItem::boundingRect();
 
     // Estimate label text width
-    QString label = Translator::tr(QStringLiteral("port.") + QString::fromStdString(port_->name()));
-    if (label == QStringLiteral("port.") + QString::fromStdString(port_->name())) {
-        label = QString::fromStdString(port_->name());
+    QString labelText;
+    if (Translator::currentLanguage() == QStringLiteral("zh")) {
+        // Chinese-only mode: only show translated name
+        labelText = Translator::tr(QStringLiteral("port.") + QString::fromStdString(port_->name()));
+        if (labelText == QStringLiteral("port.") + QString::fromStdString(port_->name()))
+            labelText = QString::fromStdString(port_->name());
+    } else {
+        labelText = QString::fromStdString(port_->name());
     }
 
     QFontMetrics fm(QFont("Consolas", 8));
-    int textWidth = fm.horizontalAdvance(label) + 8;
+    int textWidth = fm.horizontalAdvance(labelText) + 8;
 
     if (port_->isInput()) {
-        // label is to the right of circle (x > 0)
         return base.united(QRectF(base.left(), base.top(), base.width() + textWidth, base.height()));
     } else {
-        // label is to the left of circle (x < 0)
         return base.united(QRectF(base.left() - textWidth, base.top(), base.width() + textWidth, base.height()));
     }
 }
@@ -64,14 +67,19 @@ void PortWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidg
     painter->setPen(QPen(c.darker(150), 1.5));
     painter->drawEllipse(rect());
 
-    // Port label (translated)
-    QString label = Translator::tr(QStringLiteral("port.") + QString::fromStdString(port_->name()));
-    if (label == QStringLiteral("port.") + QString::fromStdString(port_->name())) {
+    // Port label (Chinese-only or bilingual)
+    QString label;
+    if (Translator::currentLanguage() == QStringLiteral("zh")) {
+        // Chinese-only mode: only show translated Chinese name
+        label = Translator::tr(QStringLiteral("port.") + QString::fromStdString(port_->name()));
+        if (label == QStringLiteral("port.") + QString::fromStdString(port_->name()))
+            label = QString::fromStdString(port_->name());
+    } else {
         label = QString::fromStdString(port_->name());
     }
 
     painter->setFont(QFont("Consolas", 8));
-    painter->setPen(Qt::white);
+    painter->setPen(ThemeManager::textPrimary());
     if (port_->isInput()) {
         painter->drawText(QPointF(10, 4), label);
     } else {

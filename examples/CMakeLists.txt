@@ -1,2 +1,2 @@
-# QBlock Examples
-add_subdirectory(simple_editor)
+# QCdot Examples
+add_subdirectory(QCdot-editor)

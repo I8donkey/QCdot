@@ -4,8 +4,10 @@
 #include "EditorScene.h"
 #include <QBlock/NodeGraph.h>
 #include <QBlock/ExecutionEngine.h>
+#include <QBlock/ThemeManager.h>
 #include <QGraphicsView>
 #include <QToolBar>
+#include <QMenu>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <memory>
@@ -13,7 +15,7 @@
 namespace QBlock {
 
 /// Main editor widget that provides the full node editing experience.
-/// Contains a QGraphicsView, toolbar, and manages the EditorScene.
+/// Contains a QGraphicsView, toolbar with settings menu, and manages the EditorScene.
 class NodeEditor final : public QWidget {
     Q_OBJECT
 public:
@@ -27,11 +29,14 @@ public:
     /// Create a new blank graph.
     void newGraph();
 
-    /// Load a graph from a JSON file.
+    /// Load a graph from a .qcd file.
     bool loadFromFile(const QString& filePath);
 
-    /// Save the current graph to a JSON file.
+    /// Save the current graph to a .qcd file.
     bool saveToFile(const QString& filePath) const;
+
+    /// Export the current graph as a .cpp source file.
+    bool exportToCpp(const QString& filePath) const;
 
     // ---- Execution ----
 
@@ -40,10 +45,12 @@ public:
 
     // ---- Node factory ----
 
-    /// Register a factory function for a node type.
     using NodeFactory = std::function<std::unique_ptr<Node>(const std::string& typeName)>;
     void setNodeFactory(NodeFactory factory) { nodeFactory_ = std::move(factory); }
     const NodeFactory& nodeFactory() const { return nodeFactory_; }
+
+    /// List all available node type names from the factory.
+    std::vector<std::string> listNodeTypes() const;
 
     /// Add a node to the graph at a given position.
     Node* addNode(const std::string& typeName, float x, float y);
@@ -56,15 +63,23 @@ public:
     /// Fit the view to show all nodes.
     void fitToScreen();
 
+    /// Toggle dark/light theme.
+    void toggleTheme();
+
+public slots:
+    void setLanguage(const QString& lang);
+
 signals:
     void nodeSelected(Node* node);
     void graphModified();
-    /// Emitted when UI language changes (for external widgets to refresh).
     void languageChanged();
 
 private:
     void setupUI();
     void setupToolbar();
+    void setupSettingsMenu(QToolBar* toolbar);
+    void applyThemeStyle();
+    std::string generateCppCode() const;
 
     EditorScene* scene_;
     QGraphicsView* view_;
@@ -74,6 +89,8 @@ private:
     QVBoxLayout* layout_;
     QToolBar* toolbar_;
     QAction* langAct_ = nullptr;
+    QAction* themeAct_ = nullptr;
+    QMenu* settingsMenu_ = nullptr;
 };
 
 } // namespace QBlock

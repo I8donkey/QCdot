@@ -97,9 +97,11 @@ private:
         list_->clear();
         for (const auto& entry : nodes_) {
             QString display = QBlock::Translator::tr(entry.trKey);
+            // Chinese-only mode: don't show English fallback
             if (QBlock::Translator::currentLanguage() == QStringLiteral("zh")) {
-                // Show "中文 (English)" format in Chinese mode
-                display += QStringLiteral(" (") + entry.typeName + QStringLiteral(")");
+                // Only show Chinese name, no English
+            } else {
+                // English mode: show English name
             }
             auto* item = new QListWidgetItem(display, list_);
             item->setData(Qt::UserRole, entry.typeName);

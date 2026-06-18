@@ -30,7 +30,7 @@ void NodeEditor::setupUI() {
     scene_ = new EditorScene(this);
     view_ = new QGraphicsView(scene_, this);
     view_->setRenderHint(QPainter::Antialiasing);
-    view_->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+    view_->setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     view_->setDragMode(QGraphicsView::ScrollHandDrag);
     view_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -104,6 +104,12 @@ void NodeEditor::setupToolbar() {
         execSigAct->setText(Translator::tr("toolbar.run_signal"));
         fitAct->setText(Translator::tr("toolbar.fit_view"));
         langAct_->setText(Translator::tr("toolbar.lang"));
+        // Refresh node and port widgets to show new language
+        for (auto* item : scene_->items()) {
+            if (auto* nw = dynamic_cast<NodeWidget*>(item)) {
+                nw->update();
+            }
+        }
         emit languageChanged();
     });
 

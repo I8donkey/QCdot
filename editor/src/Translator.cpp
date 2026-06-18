@@ -39,7 +39,7 @@ const QHash<QString, QHash<QString, QString>>& Translator::data() {
     static const QHash<QString, QHash<QString, QString>> s_data = {
         {QStringLiteral("en"), {
             // ---- Application ----
-            {QStringLiteral("app.title"),       QStringLiteral("QBlock - Visual Programming Editor")},
+            {QStringLiteral("app.title"),       QStringLiteral("qcdot - Visual Programming Editor")},
 
             // ---- Toolbar ----
             {QStringLiteral("toolbar.new"),     QStringLiteral("New")},
@@ -53,6 +53,40 @@ const QHash<QString, QHash<QString, QString>>& Translator::data() {
             // ---- Palette ----
             {QStringLiteral("palette.title"),   QStringLiteral("Node Palette")},
             {QStringLiteral("palette.nodes"),   QStringLiteral("Nodes")},
+
+            // ---- Common port names ----
+            {QStringLiteral("port.value"),      QStringLiteral("value")},
+            {QStringLiteral("port.result"),     QStringLiteral("result")},
+            {QStringLiteral("port.out"),        QStringLiteral("out")},
+            {QStringLiteral("port.in"),         QStringLiteral("in")},
+            {QStringLiteral("port.input"),      QStringLiteral("input")},
+            {QStringLiteral("port.output"),     QStringLiteral("output")},
+            {QStringLiteral("port.a"),          QStringLiteral("a")},
+            {QStringLiteral("port.b"),          QStringLiteral("b")},
+            {QStringLiteral("port.x"),          QStringLiteral("x")},
+            {QStringLiteral("port.y"),          QStringLiteral("y")},
+            {QStringLiteral("port.base"),       QStringLiteral("base")},
+            {QStringLiteral("port.exp"),        QStringLiteral("exp")},
+            {QStringLiteral("port.str"),        QStringLiteral("str")},
+            {QStringLiteral("port.start"),      QStringLiteral("start")},
+            {QStringLiteral("port.length"),     QStringLiteral("length")},
+            {QStringLiteral("port.bits"),       QStringLiteral("bits")},
+            {QStringLiteral("port.path"),       QStringLiteral("path")},
+            {QStringLiteral("port.content"),    QStringLiteral("content")},
+            {QStringLiteral("port.success"),    QStringLiteral("success")},
+            {QStringLiteral("port.data"),       QStringLiteral("data")},
+            {QStringLiteral("port.min"),        QStringLiteral("min")},
+            {QStringLiteral("port.max"),        QStringLiteral("max")},
+            {QStringLiteral("port.ms"),         QStringLiteral("ms")},
+            {QStringLiteral("port.done"),       QStringLiteral("done")},
+            {QStringLiteral("port.condition"),  QStringLiteral("condition")},
+            {QStringLiteral("port.trueValue"),  QStringLiteral("trueValue")},
+            {QStringLiteral("port.falseValue"), QStringLiteral("falseValue")},
+            {QStringLiteral("port.true"),       QStringLiteral("true")},
+            {QStringLiteral("port.false"),      QStringLiteral("false")},
+            {QStringLiteral("port.then"),       QStringLiteral("then")},
+            {QStringLiteral("port.else"),       QStringLiteral("else")},
+            {QStringLiteral("port.exec"),       QStringLiteral("exec")},
 
             // ---- Node names (palette display) ----
             {QStringLiteral("node.Add"),              QStringLiteral("Add")},
@@ -103,7 +137,7 @@ const QHash<QString, QHash<QString, QString>>& Translator::data() {
 
         {QStringLiteral("zh"), {
             // ---- Application ----
-            {QStringLiteral("app.title"),       QStringLiteral("QBlock - 可视化编程编辑器")},
+            {QStringLiteral("app.title"),       QStringLiteral("qcdot - 可视化编程编辑器")},
 
             // ---- Toolbar ----
             {QStringLiteral("toolbar.new"),     QStringLiteral("新建")},
@@ -117,6 +151,40 @@ const QHash<QString, QHash<QString, QString>>& Translator::data() {
             // ---- Palette ----
             {QStringLiteral("palette.title"),   QStringLiteral("节点素材库")},
             {QStringLiteral("palette.nodes"),   QStringLiteral("节点")},
+
+            // ---- Common port names ----
+            {QStringLiteral("port.value"),      QStringLiteral("输入值")},
+            {QStringLiteral("port.result"),     QStringLiteral("结果")},
+            {QStringLiteral("port.out"),        QStringLiteral("输出")},
+            {QStringLiteral("port.in"),         QStringLiteral("输入")},
+            {QStringLiteral("port.input"),      QStringLiteral("输入")},
+            {QStringLiteral("port.output"),     QStringLiteral("输出")},
+            {QStringLiteral("port.a"),          QStringLiteral("a")},
+            {QStringLiteral("port.b"),          QStringLiteral("b")},
+            {QStringLiteral("port.x"),          QStringLiteral("x")},
+            {QStringLiteral("port.y"),          QStringLiteral("y")},
+            {QStringLiteral("port.base"),       QStringLiteral("底数")},
+            {QStringLiteral("port.exp"),        QStringLiteral("指数")},
+            {QStringLiteral("port.str"),        QStringLiteral("字符串")},
+            {QStringLiteral("port.start"),      QStringLiteral("起始")},
+            {QStringLiteral("port.length"),     QStringLiteral("长度")},
+            {QStringLiteral("port.bits"),       QStringLiteral("位数")},
+            {QStringLiteral("port.path"),       QStringLiteral("路径")},
+            {QStringLiteral("port.content"),    QStringLiteral("内容")},
+            {QStringLiteral("port.success"),    QStringLiteral("成功")},
+            {QStringLiteral("port.data"),       QStringLiteral("数据")},
+            {QStringLiteral("port.min"),        QStringLiteral("最小值")},
+            {QStringLiteral("port.max"),        QStringLiteral("最大值")},
+            {QStringLiteral("port.ms"),         QStringLiteral("毫秒")},
+            {QStringLiteral("port.done"),       QStringLiteral("完成")},
+            {QStringLiteral("port.condition"),  QStringLiteral("条件")},
+            {QStringLiteral("port.trueValue"),  QStringLiteral("真值")},
+            {QStringLiteral("port.falseValue"), QStringLiteral("假值")},
+            {QStringLiteral("port.true"),       QStringLiteral("真值")},
+            {QStringLiteral("port.false"),      QStringLiteral("假值")},
+            {QStringLiteral("port.then"),       QStringLiteral("真分支")},
+            {QStringLiteral("port.else"),       QStringLiteral("假分支")},
+            {QStringLiteral("port.exec"),       QStringLiteral("执行")},
 
             // ---- Node names (palette display) ----
             {QStringLiteral("node.Add"),              QStringLiteral("加法")},

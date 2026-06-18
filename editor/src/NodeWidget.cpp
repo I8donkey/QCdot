@@ -1,8 +1,11 @@
 #include <QBlock/NodeWidget.h>
 #include <QBlock/PortWidget.h>
+#include <QBlock/Translator.h>
 #include <QGraphicsScene>
 #include <QGraphicsSceneMouseEvent>
 #include <QStyleOptionGraphicsItem>
+#include <QPainter>
+#include <QFontMetrics>
 
 namespace QBlock {
 
@@ -42,7 +45,6 @@ void NodeWidget::layout() {
         y += kPortHeight;
     }
 
-    // If we have both inputs and outputs, add a separator
     if (!inputPorts_.isEmpty() && !outputPorts_.isEmpty())
         y += kPadding;
 
@@ -55,15 +57,16 @@ void NodeWidget::layout() {
 QRectF NodeWidget::boundingRect() const {
     float h = kHeaderHeight + kPadding;
     h += std::max(inputPorts_.size(), outputPorts_.size()) * kPortHeight;
-    return QRectF(0, 0, kWidth, h);
+    // Expand by shadow offset on the right/bottom, and a small margin on all sides
+    return QRectF(-kMargin, -kMargin, kWidth + kMargin * 2 + kShadowOffset, h + kMargin * 2 + kShadowOffset);
 }
 
 void NodeWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget*) {
-    QRectF r = boundingRect();
+    QRectF r(0, 0, kWidth, boundingRect().height() - kMargin * 2 - kShadowOffset);
     painter->setRenderHint(QPainter::Antialiasing);
 
     // Shadow
-    QRectF shadowRect = r.translated(3, 3);
+    QRectF shadowRect = r.translated(kShadowOffset, kShadowOffset);
     painter->setBrush(QColor(0, 0, 0, 60));
     painter->setPen(Qt::NoPen);
     painter->drawRoundedRect(shadowRect, 6, 6);
@@ -83,34 +86,30 @@ void NodeWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem* option
     painter->setBrush(grad);
     painter->setPen(Qt::NoPen);
     painter->drawRoundedRect(header, 6, 6);
-    // Only round top corners
     painter->drawRect(QRectF(header.x(), header.y() + 4, header.width(), header.height() - 4));
 
-    // Title
+    // Title (translated)
+    QString titleKey = QStringLiteral("node.") + QString::fromStdString(node_->typeName());
+    QString title = Translator::tr(titleKey);
+    if (title == titleKey) {
+        // fallback to label if no translation found
+        QString label = QString::fromStdString(node_->label());
+        title = label.isEmpty() ? QString::fromStdString(node_->typeName()) : label;
+    }
+
     painter->setFont(QFont("Consolas", 10, QFont::Bold));
     painter->setPen(Qt::white);
-    painter->drawText(header.adjusted(8, 0, -8, 0), Qt::AlignVCenter,
-                      QString::fromStdString(node_->label()));
+    painter->drawText(header.adjusted(8, 0, -8, 0), Qt::AlignVCenter, title);
 
-    // Type name (smaller, below header)
+    // Type name (smaller, below header) - also translated
+    QString typeTranslated = Translator::tr(titleKey);
+    if (typeTranslated == titleKey) typeTranslated = QString::fromStdString(node_->typeName());
     painter->setFont(QFont("Consolas", 7));
     painter->setPen(QColor(150, 150, 150));
     painter->drawText(QRectF(r.x() + 8, r.y() + kHeaderHeight, r.width() - 16, 14),
-                      Qt::AlignVCenter,
-                      QString::fromStdString(node_->typeName()));
+                      Qt::AlignVCenter, typeTranslated);
 
-    // Port areas
-    painter->setFont(QFont("Consolas", 8));
-    float portAreaY = kHeaderHeight + 14;
-    for (auto* pw : inputPorts_) {
-        Q_UNUSED(pw);
-        portAreaY += kPortHeight;
-    }
-    portAreaY += kPadding;
-    for (auto* pw : outputPorts_) {
-        Q_UNUSED(pw);
-        portAreaY += kPortHeight;
-    }
+    // Ports are rendered by PortWidget child items
 }
 
 PortWidget* NodeWidget::findPortWidget(const std::string& portName, bool isInput) const {
@@ -123,15 +122,14 @@ PortWidget* NodeWidget::findPortWidget(const std::string& portName, bool isInput
 }
 
 void NodeWidget::refresh() {
-    inputPorts_.clear();
-    outputPorts_.clear();
-    // Remove old port items
     const auto children = childItems();
     for (auto* child : children) {
         if (auto* pw = dynamic_cast<PortWidget*>(child)) {
             delete pw;
         }
     }
+    inputPorts_.clear();
+    outputPorts_.clear();
     createPortWidgets();
     update();
 }
@@ -153,7 +151,6 @@ void NodeWidget::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
     if (dragging_) {
         dragging_ = false;
         setCursor(Qt::OpenHandCursor);
-        // Update node position
         node_->setPosition(static_cast<float>(pos().x()), static_cast<float>(pos().y()));
         QGraphicsItem::mouseReleaseEvent(event);
     }

@@ -1,9 +1,11 @@
 #include <QBlock/PortWidget.h>
 #include <QBlock/ConnectionWidget.h>
 #include <QBlock/NodeWidget.h>
+#include <QBlock/Translator.h>
 #include <QCursor>
 #include <QPainter>
 #include <QPen>
+#include <QFontMetrics>
 
 namespace QBlock {
 
@@ -34,19 +36,45 @@ void PortWidget::removeConnection(ConnectionWidget* conn) {
     connections_.removeAll(conn);
 }
 
+QRectF PortWidget::boundingRect() const {
+    // Get base ellipse rect
+    QRectF base = QGraphicsEllipseItem::boundingRect();
+
+    // Estimate label text width
+    QString label = Translator::tr(QStringLiteral("port.") + QString::fromStdString(port_->name()));
+    if (label == QStringLiteral("port.") + QString::fromStdString(port_->name())) {
+        label = QString::fromStdString(port_->name());
+    }
+
+    QFontMetrics fm(QFont("Consolas", 8));
+    int textWidth = fm.horizontalAdvance(label) + 8;
+
+    if (port_->isInput()) {
+        // label is to the right of circle (x > 0)
+        return base.united(QRectF(base.left(), base.top(), base.width() + textWidth, base.height()));
+    } else {
+        // label is to the left of circle (x < 0)
+        return base.united(QRectF(base.left() - textWidth, base.top(), base.width() + textWidth, base.height()));
+    }
+}
+
 void PortWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
     QColor c = port_->color();
     painter->setBrush(QBrush(isUnderMouse() ? c.lighter(150) : c));
     painter->setPen(QPen(c.darker(150), 1.5));
     painter->drawEllipse(rect());
 
-    // Port label
+    // Port label (translated)
+    QString label = Translator::tr(QStringLiteral("port.") + QString::fromStdString(port_->name()));
+    if (label == QStringLiteral("port.") + QString::fromStdString(port_->name())) {
+        label = QString::fromStdString(port_->name());
+    }
+
     painter->setFont(QFont("Consolas", 8));
     painter->setPen(Qt::white);
     if (port_->isInput()) {
-        painter->drawText(QPointF(10, 4), port_->displayName());
+        painter->drawText(QPointF(10, 4), label);
     } else {
-        QString label = port_->displayName();
         int textWidth = painter->fontMetrics().horizontalAdvance(label);
         painter->drawText(QPointF(-textWidth - 10, 4), label);
     }

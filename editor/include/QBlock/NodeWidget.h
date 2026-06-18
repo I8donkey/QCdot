@@ -48,6 +48,8 @@ private:
     static constexpr float kHeaderHeight = 28.0f;
     static constexpr float kPortHeight = 20.0f;
     static constexpr float kPadding = 8.0f;
+    static constexpr float kShadowOffset = 3.0f;
+    static constexpr float kMargin = 6.0f;
 
     bool dragging_ = false;
     QPointF dragStart_;

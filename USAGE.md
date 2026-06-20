@@ -1,219 +1,160 @@
-# QCdot Usage Guide
+# QBlock - Usage Guide
 
-**Version**: 0.1.0
+## Version
 
-[中文版本](USAGE_zh.md)
+Current version: 1.0.0
 
-## Overview
+## Basic Concepts
 
-QCdot is a visual programming engine that allows you to create node-based applications. It consists of two main components:
+### Nodes
 
-1. **Engine**: Core library for node graph manipulation and execution
-2. **Editor**: Visual components for building node-based UIs
+Nodes are the basic building blocks in QBlock. Each node represents a function, variable, or UI component. Nodes have:
+- **Input ports**: Left side of the node (accepting data)
+- **Output ports**: Right side of the node (producing data)
+- **Title**: Name of the node type
 
-## Getting Started
+### Connections
 
-### Basic Setup
+Connections link output ports to input ports, creating a data flow. Connections are color-coded by data type.
 
-```cpp
-#include <QBlock/NodeEditor.h>
-#include <QBlock/BuiltinNodes.h>
-#include <QApplication>
+### Data Types
 
-int main(int argc, char* argv[]) {
-    QApplication app(argc, argv);
-    
-    // Create the node editor
-    QBlock::NodeEditor editor;
-    
-    // Add nodes
-    auto* intNode = editor.addNode("ConstantInt", 100, 100);
-    auto* addNode = editor.addNode("Add", 300, 100);
-    
-    // Connect nodes
-    editor.graph()->connect(
-        intNode->outputs()[0].get(),
-        addNode->inputs()[0].get()
-    );
-    
-    editor.show();
-    return app.exec();
-}
-```
+- **Integer**: Whole numbers (1, 2, 3, ...)
+- **Float**: Decimal numbers (1.5, 3.14, ...)
+- **Boolean**: True/False values
+- **String**: Text values
+- **Generic**: Any data type
 
-## Node Types
+## Node Palette
 
-### Math Nodes
-- `Add` - Integer/Float addition
-- `Subtract` - Integer/Float subtraction
-- `Multiply` - Integer/Float multiplication
-- `Divide` - Integer/Float division
-- `Modulo` - Integer modulo
-- `Power` - Exponentiation
-- `Sqrt` - Square root
+The left panel shows all available nodes, organized by category:
 
-### Logic Nodes
-- `Equal` - Equality comparison
-- `GreaterThan` - Greater than comparison
-- `LessThan` - Less than comparison
-- `And` - Logical AND
-- `Or` - Logical OR
-- `Not` - Logical NOT
-- `IfElse` - Conditional branching
+1. **Input**: Constants and variable nodes
+2. **Output**: Print and display nodes
+3. **Container**: Window and layout nodes
+4. **Widget**: UI component nodes
+5. **Widget Method**: Widget manipulation nodes
+6. **Math**: Arithmetic operations
+7. **Logic**: Comparison and boolean operations
+8. **String**: String manipulation
+9. **Convert**: Type conversion
+10. **File**: File operations
+11. **Util**: Utilities (delay, random, etc.)
 
-### Data Nodes
-- `ConstantInt` - Integer constant (use `setValue(int64_t)`)
-- `ConstantFloat` - Float constant (use `setValue(double)`)
-- `ConstantBool` - Boolean constant (use `setValue(bool)`)
-- `ConstantString` - String constant (use `setValue(const std::string&)`)
-- `Variable` - Variable storage
-- `Counter` - Counter with increment
+### Creating Nodes
 
-### Conversion Nodes
-- `IntToFloat` - Convert integer to float
-- `FloatToInt` - Convert float to integer
-- `ToString` - Convert value to string
+1. **Drag and drop**: Drag a node from the palette to the canvas
+2. **Inline picker**: Drag a connection wire to empty space and select a node type
+3. **Double-click**: Double-click on empty canvas to open the node picker
 
-### String Nodes
-- `StringConcat` - Concatenate strings
-- `StringLength` - Get string length
-- `StringSubstring` - Extract substring
+### Connecting Nodes
 
-### Bitwise Nodes
-- `BinaryAnd` - Bitwise AND
-- `BinaryOr` - Bitwise OR
-- `BinaryXor` - Bitwise XOR
-- `ShiftLeft` - Left shift
-- `ShiftRight` - Right shift
+1. Click on an output port (right side)
+2. Drag to an input port (left side)
+3. Release to create connection
 
-### File Nodes
-- `FileReadText` - Read text file
-- `FileWriteText` - Write text file
-- `FileReadBinary` - Read binary file
+### Deleting Nodes
 
-### Utility Nodes
-- `RandomInt` - Generate random integer
-- `Sleep` - Pause execution
+1. Select the node(s) to delete
+2. Press `Delete` key or click the delete button
 
-### Qt UI Nodes
-- `Color` - RGBA color value
-- `QtMainWindow` - Top-level window container
-- `QtButton` - Clickable button
-- `QtLabel` - Text display label
-- `QtLineEdit` - Single-line text input
-- `QtTabWidget` - Tab container
-- `QtLayout` - Layout container
-- `QtSlider` - Value slider
-- `QtCheckBox` - Checkbox
-- `QtComboBox` - Dropdown selection
-- `QtSpinBox` - Numeric spin box
-- `QtProgressBar` - Progress indicator
+### Editing Node Values
 
-## Setting Constant Values
+Double-click on a constant node to edit its value.
 
-```cpp
-// Integer constants
-auto* intNode = editor.addNode("ConstantInt", 80, 60);
-if (auto* constNode = dynamic_cast<QBlock::Builtin::ConstantIntNode*>(intNode))
-    constNode->setValue(42);
+## Execution Modes
 
-// Float constants
-auto* floatNode = editor.addNode("ConstantFloat", 80, 160);
-if (auto* constNode = dynamic_cast<QBlock::Builtin::ConstantFloatNode*>(floatNode))
-    constNode->setValue(3.14159);
+### Dataflow Mode (Default)
 
-// Boolean constants
-auto* boolNode = editor.addNode("ConstantBool", 80, 260);
-if (auto* constNode = dynamic_cast<QBlock::Builtin::ConstantBoolNode*>(boolNode))
-    constNode->setValue(true);
+Nodes execute when all their inputs have valid values. Execution flows automatically based on data availability.
 
-// String constants
-auto* strNode = editor.addNode("ConstantString", 80, 360);
-if (auto* constNode = dynamic_cast<QBlock::Builtin::ConstantStringNode*>(strNode))
-    constNode->setValue("Hello World");
-```
+### Signal Mode
 
-## Theme Management
+Nodes execute from left to right, following explicit signal connections. Useful for imperative logic.
 
-```cpp
-#include <QBlock/ThemeManager.h>
+## File Operations
 
-// Get current theme
-auto theme = QBlock::ThemeManager::instance().currentTheme();
+### Saving
 
-// Switch to dark mode
-QBlock::ThemeManager::instance().setTheme(QBlock::ThemeMode::Dark);
+1. `Ctrl+S` or File → Save
+2. Choose a location and filename
+3. Graph saves as `.qcd` file
 
-// Switch to light mode
-QBlock::ThemeManager::instance().setTheme(QBlock::ThemeMode::Light);
+### Opening
 
-// Listen for theme changes
-QBlock::ThemeManager::onThemeChanged([]() {
-    // Update your UI
-});
-```
+1. `Ctrl+O` or File → Open
+2. Select a `.qcd` file
+3. Graph loads into the editor
 
-## Language Management
+### Exporting to C++
 
-```cpp
-#include <QBlock/Translator.h>
+1. File → Export as C++
+2. Choose a location for the generated source code
 
-// Set language to Chinese
-QBlock::Translator::setLanguage("zh");
+## Theme and Language
 
-// Set language to English
-QBlock::Translator::setLanguage("en");
+### Switching Themes
 
-// Get translated string
-QString title = QBlock::Translator::tr("app.title");
-```
+Use the toolbar buttons or menu options to switch between dark and light themes.
 
-## Saving and Loading
+### Switching Languages
 
-```cpp
-// Save graph to file
-editor.saveGraph("my_graph.qcd");
+Use Language menu to switch between English and Chinese (中文).
 
-// Load graph from file
-editor.loadGraph("my_graph.qcd");
-```
+## Advanced Features
 
-## Custom Nodes
+### Variable Nodes
 
-To create custom nodes, inherit from `QBlock::Node`:
+Use Variable nodes to store and retrieve values across the graph:
 
-```cpp
-class MyCustomNode : public QBlock::Node {
-public:
-    MyCustomNode() {
-        addInput("input", QBlock::DataType::Integer);
-        addOutput("output", QBlock::DataType::Integer);
-    }
-    
-    std::string typeName() const override { return "MyCustomNode"; }
-    std::string nodeTitle() const override { return "My Custom Node"; }
-    
-    void process(const QBlock::VariantMap& in, QBlock::VariantMap& out) override {
-        int value = in.at("input").toInt();
-        out["output"] = QBlock::Variant(value * 2);
-    }
-};
-```
+1. Create a Variable node
+2. Connect to read or write values
+3. Variables persist across executions
 
-Register the custom node using the node factory.
+### Conditional Execution
 
-## Editor Features
+Use IfElse nodes to branch execution based on conditions:
 
-### Drag and Drop
-- Drag nodes from the palette to the canvas
-- Drag connections between ports
-- Click and drag nodes to reposition
+1. Add an IfElse node
+2. Connect a boolean condition to the "condition" input
+3. Connect nodes to "true" and "false" branches
 
-### Keyboard Shortcuts
-- Delete node: Select node and press Delete
-- Copy node: Ctrl+C
-- Paste node: Ctrl+V
+### Container Nodes
 
-### Context Menu
-- Right-click on canvas to show node picker
-- Double-click on constant nodes to edit values
+Use container nodes to create structured UI layouts:
+
+1. Add a MainWindow or TabWidget container
+2. Add a Layout node
+3. Add widgets and connect them to the layout
+4. Use method nodes to manipulate containers
+
+## Troubleshooting
+
+### Connection won't create
+
+- Check that the data types are compatible
+- Check that you're connecting output to input (not output to output)
+
+### Node doesn't execute
+
+- Ensure all required inputs are connected
+- Check for circular dependencies in signal mode
+
+### Application crashes
+
+- Save your work frequently
+- Check the console output for error messages
+
+## API Reference
+
+### Node Types
+
+All node types are defined in `nodes/include/QBlock/BuiltinNodes.h`.
+
+### Engine API
+
+Core execution engine is in `engine/include/QBlock/`.
+
+### Editor API
+
+Editor components are in `editor/include/QBlock/`.

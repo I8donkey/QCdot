@@ -8,6 +8,8 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QFontMetrics>
+#include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSceneHoverEvent>
 
 namespace QBlock {
 
@@ -38,30 +40,70 @@ void PortWidget::removeConnection(ConnectionWidget* conn) {
     connections_.removeAll(conn);
 }
 
+bool PortWidget::isRemovable() const {
+    const std::string& name = port_->name();
+    return (name.find("widget") == 0 || name.find("tab") == 0 || name.find("item") == 0);
+}
+
 QRectF PortWidget::boundingRect() const {
     QRectF base = QGraphicsEllipseItem::boundingRect();
 
-    // Estimate label text width — use input/output specific translation key
     QString labelText;
-    QString prefix = QStringLiteral("port.");
-    labelText = Translator::tr(prefix + QString::fromStdString(port_->name()));
-    if (labelText.startsWith(prefix))
-        labelText = QString::fromStdString(port_->name());
+    std::string portName = port_->name();
+    
+    if (portName.find("widget") == 0) {
+        QString baseLabel = Translator::tr("port.widget");
+        if (baseLabel != "port.widget") {
+            labelText = baseLabel + QString::fromStdString(portName.substr(6));
+        } else {
+            labelText = QString::fromStdString(portName);
+        }
+    } else if (portName.find("tab") == 0) {
+        QString baseLabel = Translator::tr("port.tab");
+        if (baseLabel != "port.tab") {
+            labelText = baseLabel + QString::fromStdString(portName.substr(3));
+        } else {
+            labelText = QString::fromStdString(portName);
+        }
+    } else if (portName.find("item") == 0) {
+        QString baseLabel = Translator::tr("port.item");
+        if (baseLabel != "port.item") {
+            labelText = baseLabel + QString::fromStdString(portName.substr(4));
+        } else {
+            labelText = QString::fromStdString(portName);
+        }
+    } else {
+        QString prefix = QStringLiteral("port.");
+        labelText = Translator::tr(prefix + QString::fromStdString(portName));
+        if (labelText.startsWith(prefix))
+            labelText = QString::fromStdString(portName);
+    }
 
     QFontMetrics fm(QFont("Consolas", 8));
     int textWidth = fm.horizontalAdvance(labelText) + 8;
 
+    int extraWidth = 0;
+    if (isRemovable()) {
+        extraWidth = kDeleteButtonSize + 4;
+    }
+
     if (port_->isInput()) {
-        return base.united(QRectF(base.left(), base.top(), base.width() + textWidth, base.height()));
+        return base.united(QRectF(base.left(), base.top(), base.width() + textWidth + extraWidth, base.height()));
     } else {
         return base.united(QRectF(base.left() - textWidth, base.top(), base.width() + textWidth, base.height()));
     }
 }
 
 QPainterPath PortWidget::shape() const {
-    // Restrict hit testing to just the port circle (with a bit of tolerance)
     QPainterPath path;
     path.addEllipse(-8, -8, 16, 16);
+    
+    if (isRemovable()) {
+        float buttonX = 20;
+        float buttonY = -kDeleteButtonSize / 2;
+        path.addRect(buttonX, buttonY, kDeleteButtonSize, kDeleteButtonSize);
+    }
+    
     return path;
 }
 
@@ -71,21 +113,180 @@ void PortWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidg
     painter->setPen(QPen(c.darker(150), 1.5));
     painter->drawEllipse(rect());
 
-    // Port label — use input/output specific translation key
     QString label;
     QString prefix = QStringLiteral("port.");
-    label = Translator::tr(prefix + QString::fromStdString(port_->name()));
-    if (label.startsWith(prefix))
-        label = QString::fromStdString(port_->name());
+    std::string portName = port_->name();
+    
+    if (portName.find("widget") == 0) {
+        QString baseLabel = Translator::tr("port.widget");
+        if (baseLabel != "port.widget") {
+            label = baseLabel + QString::fromStdString(portName.substr(6));
+        } else {
+            label = QString::fromStdString(portName);
+        }
+    } else if (portName.find("tab") == 0) {
+        QString baseLabel = Translator::tr("port.tab");
+        if (baseLabel != "port.tab") {
+            label = baseLabel + QString::fromStdString(portName.substr(3));
+        } else {
+            label = QString::fromStdString(portName);
+        }
+    } else if (portName.find("item") == 0) {
+        QString baseLabel = Translator::tr("port.item");
+        if (baseLabel != "port.item") {
+            label = baseLabel + QString::fromStdString(portName.substr(4));
+        } else {
+            label = QString::fromStdString(portName);
+        }
+    } else {
+        label = Translator::tr(prefix + QString::fromStdString(portName));
+        if (label.startsWith(prefix)) {
+            label = QString::fromStdString(portName);
+        }
+    }
+
+    int textX = 10;
+    
+    if (isRemovable()) {
+        float buttonX = textX + painter->fontMetrics().horizontalAdvance(label) + 4;
+        float buttonY = -kDeleteButtonSize / 2;
+        QRectF buttonRect(buttonX, buttonY, kDeleteButtonSize, kDeleteButtonSize);
+        
+        if (hoverDeleteButton_) {
+            painter->setBrush(QColor(220, 60, 60));
+        } else {
+            painter->setBrush(QColor(100, 60, 60));
+        }
+        painter->setPen(Qt::NoPen);
+        painter->drawRoundedRect(buttonRect, 3, 3);
+        
+        painter->setFont(QFont("Consolas", 10, QFont::Bold));
+        painter->setPen(Qt::white);
+        painter->drawText(buttonRect, Qt::AlignCenter, QStringLiteral("×"));
+    }
 
     painter->setFont(QFont("Consolas", 8));
     painter->setPen(ThemeManager::textPrimary());
     if (port_->isInput()) {
-        painter->drawText(QPointF(10, 4), label);
+        painter->drawText(QPointF(textX, 4), label);
     } else {
         int textWidth = painter->fontMetrics().horizontalAdvance(label);
         painter->drawText(QPointF(-textWidth - 10, 4), label);
     }
+}
+
+void PortWidget::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+    if (isRemovable()) {
+        QPointF localPos = event->pos();
+        QString label;
+        std::string portName = port_->name();
+        
+        if (portName.find("widget") == 0) {
+            QString baseLabel = Translator::tr("port.widget");
+            if (baseLabel != "port.widget") {
+                label = baseLabel + QString::fromStdString(portName.substr(6));
+            } else {
+                label = QString::fromStdString(portName);
+            }
+        } else if (portName.find("tab") == 0) {
+            QString baseLabel = Translator::tr("port.tab");
+            if (baseLabel != "port.tab") {
+                label = baseLabel + QString::fromStdString(portName.substr(3));
+            } else {
+                label = QString::fromStdString(portName);
+            }
+        } else if (portName.find("item") == 0) {
+            QString baseLabel = Translator::tr("port.item");
+            if (baseLabel != "port.item") {
+                label = baseLabel + QString::fromStdString(portName.substr(4));
+            } else {
+                label = QString::fromStdString(portName);
+            }
+        } else {
+            QString prefix = QStringLiteral("port.");
+            label = Translator::tr(prefix + QString::fromStdString(portName));
+            if (label.startsWith(prefix)) {
+                label = QString::fromStdString(portName);
+            }
+        }
+        
+        QFontMetrics fm(QFont("Consolas", 8));
+        int textWidth = fm.horizontalAdvance(label);
+        float buttonX = 10 + textWidth + 4;
+        float buttonY = -kDeleteButtonSize / 2;
+        QRectF buttonRect(buttonX, buttonY, kDeleteButtonSize, kDeleteButtonSize);
+        
+        if (buttonRect.contains(localPos)) {
+            nodeWidget_->node()->removeInput(port_->name());
+            nodeWidget_->refresh();
+            return;
+        }
+    }
+    QGraphicsEllipseItem::mousePressEvent(event);
+}
+
+void PortWidget::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
+    if (isRemovable()) {
+        QPointF localPos = event->pos();
+        QString label;
+        std::string portName = port_->name();
+        
+        if (portName.find("widget") == 0) {
+            QString baseLabel = Translator::tr("port.widget");
+            if (baseLabel != "port.widget") {
+                label = baseLabel + QString::fromStdString(portName.substr(6));
+            } else {
+                label = QString::fromStdString(portName);
+            }
+        } else if (portName.find("tab") == 0) {
+            QString baseLabel = Translator::tr("port.tab");
+            if (baseLabel != "port.tab") {
+                label = baseLabel + QString::fromStdString(portName.substr(3));
+            } else {
+                label = QString::fromStdString(portName);
+            }
+        } else if (portName.find("item") == 0) {
+            QString baseLabel = Translator::tr("port.item");
+            if (baseLabel != "port.item") {
+                label = baseLabel + QString::fromStdString(portName.substr(4));
+            } else {
+                label = QString::fromStdString(portName);
+            }
+        } else {
+            QString prefix = QStringLiteral("port.");
+            label = Translator::tr(prefix + QString::fromStdString(portName));
+            if (label.startsWith(prefix)) {
+                label = QString::fromStdString(portName);
+            }
+        }
+        
+        QFontMetrics fm(QFont("Consolas", 8));
+        int textWidth = fm.horizontalAdvance(label);
+        float buttonX = 10 + textWidth + 4;
+        float buttonY = -kDeleteButtonSize / 2;
+        QRectF buttonRect(buttonX, buttonY, kDeleteButtonSize, kDeleteButtonSize);
+        
+        bool wasHovering = hoverDeleteButton_;
+        hoverDeleteButton_ = buttonRect.contains(localPos);
+        
+        if (hoverDeleteButton_ != wasHovering) {
+            update();
+        }
+        
+        if (hoverDeleteButton_) {
+            setCursor(Qt::PointingHandCursor);
+        } else {
+            setCursor(QCursor(Qt::CrossCursor));
+        }
+    }
+    QGraphicsEllipseItem::hoverMoveEvent(event);
+}
+
+void PortWidget::hoverLeaveEvent(QGraphicsSceneHoverEvent* event) {
+    hoverDeleteButton_ = false;
+    setCursor(QCursor(Qt::CrossCursor));
+    update();
+    QGraphicsEllipseItem::hoverLeaveEvent(event);
 }
 
 } // namespace QBlock

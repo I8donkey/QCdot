@@ -68,6 +68,26 @@ public:
     const std::vector<std::unique_ptr<Port>>& inputs()  const { return inputs_; }
     const std::vector<std::unique_ptr<Port>>& outputs() const { return outputs_; }
 
+    bool removeInput(const std::string& name) {
+        for (auto it = inputs_.begin(); it != inputs_.end(); ++it) {
+            if ((*it)->name() == name) {
+                inputs_.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool removeOutput(const std::string& name) {
+        for (auto it = outputs_.begin(); it != outputs_.end(); ++it) {
+            if ((*it)->name() == name) {
+                outputs_.erase(it);
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ---- Identity ----
 
     uint64_t id() const { return id_; }

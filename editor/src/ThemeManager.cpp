@@ -39,6 +39,12 @@ namespace {
     constexpr auto kDarkToolbarBg       = QColor(51, 51, 51);
     constexpr auto kDarkToolbarBtn      = QColor(68, 68, 68);
     constexpr auto kDarkToolbarBtnHover = QColor(85, 85, 85);
+    constexpr auto kDarkDialogBg        = QColor(37, 37, 45);
+    constexpr auto kDarkDialogBorder    = QColor(60, 60, 70);
+    constexpr auto kDarkListBg          = QColor(35, 38, 49);
+    constexpr auto kDarkListItemHover   = QColor(46, 58, 79);
+    constexpr auto kDarkListSelected    = QColor(58, 74, 106);
+    constexpr auto kDarkConnectionLine  = QColor(180, 180, 190);
 
     constexpr auto kLightBg             = QColor(240, 240, 245);
     constexpr auto kLightGridMinor      = QColor(220, 220, 230);
@@ -56,6 +62,12 @@ namespace {
     constexpr auto kLightToolbarBg      = QColor(230, 230, 235);
     constexpr auto kLightToolbarBtn     = QColor(215, 215, 225);
     constexpr auto kLightToolbarBtnHover= QColor(200, 200, 215);
+    constexpr auto kLightDialogBg       = QColor(250, 250, 252);
+    constexpr auto kLightDialogBorder   = QColor(200, 200, 210);
+    constexpr auto kLightListBg         = QColor(245, 245, 250);
+    constexpr auto kLightListItemHover  = QColor(220, 230, 245);
+    constexpr auto kLightListSelected   = QColor(180, 200, 255);
+    constexpr auto kLightConnectionLine = QColor(100, 100, 120);
 }
 
 QColor ThemeManager::background() {
@@ -105,6 +117,34 @@ QColor ThemeManager::toolbarBtn() {
 }
 QColor ThemeManager::toolbarBtnHover() {
     return instance().theme_ == ThemeMode::Dark ? kDarkToolbarBtnHover : kLightToolbarBtnHover;
+}
+
+QColor ThemeManager::dialogBg() {
+    return instance().theme_ == ThemeMode::Dark ? kDarkDialogBg : kLightDialogBg;
+}
+
+QColor ThemeManager::dialogBorder() {
+    return instance().theme_ == ThemeMode::Dark ? kDarkDialogBorder : kLightDialogBorder;
+}
+
+QColor ThemeManager::listBg() {
+    return instance().theme_ == ThemeMode::Dark ? kDarkListBg : kLightListBg;
+}
+
+QColor ThemeManager::listItemHover() {
+    return instance().theme_ == ThemeMode::Dark ? kDarkListItemHover : kLightListItemHover;
+}
+
+QColor ThemeManager::listItemSelected() {
+    return instance().theme_ == ThemeMode::Dark ? kDarkListSelected : kLightListSelected;
+}
+
+QColor ThemeManager::connectionLine() {
+    return instance().theme_ == ThemeMode::Dark ? kDarkConnectionLine : kLightConnectionLine;
+}
+
+QColor ThemeManager::accentColor() {
+    return instance().theme_ == ThemeMode::Dark ? kDarkNodeBorderSel : kLightNodeBorderSel;
 }
 
 } // namespace QBlock

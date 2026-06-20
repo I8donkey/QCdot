@@ -5,6 +5,7 @@
 #include <QBlock/ThemeManager.h>
 #include <QCursor>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPen>
 #include <QFontMetrics>
 
@@ -40,16 +41,12 @@ void PortWidget::removeConnection(ConnectionWidget* conn) {
 QRectF PortWidget::boundingRect() const {
     QRectF base = QGraphicsEllipseItem::boundingRect();
 
-    // Estimate label text width
+    // Estimate label text width — use input/output specific translation key
     QString labelText;
-    if (Translator::currentLanguage() == QStringLiteral("zh")) {
-        // Chinese-only mode: only show translated name
-        labelText = Translator::tr(QStringLiteral("port.") + QString::fromStdString(port_->name()));
-        if (labelText == QStringLiteral("port.") + QString::fromStdString(port_->name()))
-            labelText = QString::fromStdString(port_->name());
-    } else {
+    QString prefix = QStringLiteral("port.");
+    labelText = Translator::tr(prefix + QString::fromStdString(port_->name()));
+    if (labelText.startsWith(prefix))
         labelText = QString::fromStdString(port_->name());
-    }
 
     QFontMetrics fm(QFont("Consolas", 8));
     int textWidth = fm.horizontalAdvance(labelText) + 8;
@@ -61,22 +58,25 @@ QRectF PortWidget::boundingRect() const {
     }
 }
 
+QPainterPath PortWidget::shape() const {
+    // Restrict hit testing to just the port circle (with a bit of tolerance)
+    QPainterPath path;
+    path.addEllipse(-8, -8, 16, 16);
+    return path;
+}
+
 void PortWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
     QColor c = port_->color();
     painter->setBrush(QBrush(isUnderMouse() ? c.lighter(150) : c));
     painter->setPen(QPen(c.darker(150), 1.5));
     painter->drawEllipse(rect());
 
-    // Port label (Chinese-only or bilingual)
+    // Port label — use input/output specific translation key
     QString label;
-    if (Translator::currentLanguage() == QStringLiteral("zh")) {
-        // Chinese-only mode: only show translated Chinese name
-        label = Translator::tr(QStringLiteral("port.") + QString::fromStdString(port_->name()));
-        if (label == QStringLiteral("port.") + QString::fromStdString(port_->name()))
-            label = QString::fromStdString(port_->name());
-    } else {
+    QString prefix = QStringLiteral("port.");
+    label = Translator::tr(prefix + QString::fromStdString(port_->name()));
+    if (label.startsWith(prefix))
         label = QString::fromStdString(port_->name());
-    }
 
     painter->setFont(QFont("Consolas", 8));
     painter->setPen(ThemeManager::textPrimary());

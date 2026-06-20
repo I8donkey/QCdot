@@ -1,6 +1,5 @@
 #include <QBlock/EditorScene.h>
 #include <QBlock/ConnectionWidget.h>
-#include <QBlock/NodePickerDialog.h>
 #include <QBlock/PortWidget.h>
 #include <QBlock/Translator.h>
 #include <QGraphicsSceneMouseEvent>
@@ -9,11 +8,14 @@
 #include <QPixmap>
 #include <QImage>
 #include <QApplication>
+#include <QTimer>
+#include <QMimeData>
 
 namespace QBlock {
 
 EditorScene::EditorScene(QObject* parent)
     : QGraphicsScene(parent)
+    , pickedUpConnection_(nullptr)
 {
     setSceneRect(-2000, -2000, 4000, 4000);
     setBackgroundBrush(ThemeManager::background());
@@ -92,8 +94,34 @@ NodeWidget* EditorScene::addNodeWidget(Node* node) {
 void EditorScene::removeNodeWidget(Node* node) {
     auto it = nodeWidgetMap_.find(node);
     if (it != nodeWidgetMap_.end()) {
-        removeItem(it->second);
-        delete it->second;
+        NodeWidget* widget = it->second;
+
+        // First, remove all connections attached to this node's ports
+        // Collect all connection widgets first to avoid modifying list while iterating
+        QList<ConnectionWidget*> connsToRemove;
+        for (auto* port : widget->inputPorts()) {
+            for (auto* conn : port->connections()) {
+                if (!connsToRemove.contains(conn)) {
+                    connsToRemove.append(conn);
+                }
+            }
+        }
+        for (auto* port : widget->outputPorts()) {
+            for (auto* conn : port->connections()) {
+                if (!connsToRemove.contains(conn)) {
+                    connsToRemove.append(conn);
+                }
+            }
+        }
+
+        // Remove all collected connections
+        for (auto* conn : connsToRemove) {
+            removeConnectionWidget(conn);
+        }
+
+        // Now safe to remove the node widget
+        removeItem(widget);
+        delete widget;
         nodeWidgetMap_.erase(it);
     }
 }
@@ -143,122 +171,98 @@ void EditorScene::clear() {
     QGraphicsScene::clear();
 }
 
-// ---- Port drag handling ----
-
-void EditorScene::startPortDrag(PortWidget* source) {
-    if (!source || source->port()->direction() != PortDirection::Output) return;
-    dragSourcePort_ = source;
-    tempConnection_ = new TempConnectionWidget(dragSourcePort_);
-    addItem(tempConnection_);
-}
-
-void EditorScene::updatePortDrag(const QPointF& scenePos) {
-    if (tempConnection_) {
-        tempConnection_->updateEndPoint(scenePos);
-    }
-}
-
-void EditorScene::endPortDrag(const QPointF& scenePos) {
-    if (!tempConnection_ || !dragSourcePort_) {
-        cleanupTempConnection();
-        return;
-    }
-
-    auto* item = itemAt(scenePos, QTransform());
-    auto* targetPort = dynamic_cast<PortWidget*>(item);
-
-    bool connected = false;
-    if (targetPort) {
-        if (targetPort->port()->direction() == PortDirection::Input &&
-            targetPort->port()->parentNode() != dragSourcePort_->port()->parentNode()) {
-            if (typesCompatible(dragSourcePort_->port()->type(),
-                                targetPort->port()->type())) {
-                auto* cw = addConnectionWidget(dragSourcePort_, targetPort);
-                if (cw) {
-                    connected = true;
-                    emit connectionCreated(cw->connection());
-                    emit graphModified();
-                }
-            }
-        }
-    }
-
-    cleanupTempConnection();
-
-    if (connected) {
-        QGraphicsSceneMouseEvent dummy;
-        dummy.accept();
-    }
-}
-
-void EditorScene::showNodePicker(const QPointF& scenePos) {
-    if (!dragSourcePort_ || !typeLister_ || !nodeCreator_) return;
-
-    DataType srcType = dragSourcePort_->port()->type();
-    bool isInput = true; // We need nodes that accept this type
-
-    NodePickerDialog dialog(srcType, isInput, typeLister_, QApplication::activeWindow());
-    if (dialog.exec() == QDialog::Accepted) {
-        std::string selectedType = dialog.selectedType();
-        if (!selectedType.empty()) {
-            // Create the node at the drop position
-            float nx = static_cast<float>(scenePos.x());
-            float ny = static_cast<float>(scenePos.y());
-            Node* newNode = nodeCreator_(selectedType, nx, ny);
-
-            if (newNode) {
-                // Try to auto-connect from the dragged port to the new node's first compatible input
-                DataType srcDataType = dragSourcePort_->port()->type();
-                for (const auto& input : newNode->inputs()) {
-                    if (typesCompatible(srcDataType, input->type())) {
-                        auto* srcWidget = dragSourcePort_;
-                        auto* newNodeWidget = findNodeWidget(newNode);
-                        if (newNodeWidget) {
-                            auto* tgtPort = newNodeWidget->findPortWidget(input->name(), true);
-                            if (tgtPort) {
-                                auto* cw = addConnectionWidget(srcWidget, tgtPort);
-                                if (cw) {
-                                    emit connectionCreated(cw->connection());
-                                    emit graphModified();
-                                }
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-    }
-}
-
 void EditorScene::cleanupTempConnection() {
     if (tempConnection_) {
         removeItem(tempConnection_);
         delete tempConnection_;
         tempConnection_ = nullptr;
     }
+    // Safety: if a picked-up connection is still hidden, restore it
+    if (pickedUpConnection_) {
+        pickedUpConnection_->setVisible(true);
+        pickedUpConnection_ = nullptr;
+    }
     dragSourcePort_ = nullptr;
 }
 
 void EditorScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
-    auto* item = itemAt(event->scenePos(), QTransform());
-    auto* portWidget = dynamic_cast<PortWidget*>(item);
-
-    if (portWidget && event->button() == Qt::LeftButton) {
-        if (portWidget->port()->direction() == PortDirection::Output) {
-            dragSourcePort_ = portWidget;
-            tempConnection_ = new TempConnectionWidget(dragSourcePort_);
-            addItem(tempConnection_);
-            event->accept();
-            return;
+    if (inlinePicker_) {
+        QGraphicsItem* itemAtPos = itemAt(event->scenePos(), QTransform());
+        if (!itemAtPos || !dynamic_cast<InlineNodePicker*>(itemAtPos)) {
+            closeInlinePicker();
         }
+    }
+
+    if (event->button() != Qt::LeftButton) {
+        QGraphicsScene::mousePressEvent(event);
+        return;
+    }
+
+    // Find item at click position - use a small tolerance for easier clicking on ports
+    QList<QGraphicsItem*> itemsAtPos = items(event->scenePos(), Qt::IntersectsItemShape, Qt::DescendingOrder);
+
+    // Check if we hit a port widget (prefer port over node since port is on top)
+    PortWidget* hitPort = nullptr;
+    for (auto* item : itemsAtPos) {
+        if (auto* pw = dynamic_cast<PortWidget*>(item)) {
+            // Verify click is actually within the port circle (not just boundingRect)
+            QPointF localPt = pw->mapFromScene(event->scenePos());
+            // The port is an ellipse at (-6,-6) to (6,6) - use a slightly larger radius for easier clicking
+            if (localPt.x() * localPt.x() + localPt.y() * localPt.y() <= 100.0) {
+                hitPort = pw;
+                break;
+            }
+        }
+    }
+
+    if (hitPort && hitPort->port()->direction() == PortDirection::Output) {
+        dragSourcePort_ = hitPort;
+
+        pickedUpConnection_ = nullptr;
+        const auto& existing = dragSourcePort_->connections();
+        if (!existing.empty()) {
+            pickedUpConnection_ = existing.front();
+            if (pickedUpConnection_) {
+                pickedUpConnection_->setVisible(false);
+            }
+        }
+
+        tempConnection_ = new TempConnectionWidget(dragSourcePort_);
+        addItem(tempConnection_);
+        event->accept();
+        return;
+    }
+
+    if (hitPort && hitPort->port()->direction() == PortDirection::Input) {
+        dragSourcePort_ = hitPort;
+
+        pickedUpConnection_ = nullptr;
+        const auto& existing = dragSourcePort_->connections();
+        if (!existing.empty()) {
+            pickedUpConnection_ = existing.front();
+            if (pickedUpConnection_) {
+                pickedUpConnection_->setVisible(false);
+            }
+        }
+
+        tempConnection_ = new TempConnectionWidget(dragSourcePort_);
+        addItem(tempConnection_);
+        event->accept();
+        return;
+    }
+
+    // If hit a NodeWidget's body (not a port), let it handle its own movement
+    if (hitPort) {
+        // Clicked on input port - let scene handle it normally
+        event->accept();
+        return;
     }
 
     QGraphicsScene::mousePressEvent(event);
 }
 
 void EditorScene::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
-    if (tempConnection_) {
+    if (tempConnection_ && dragSourcePort_) {
         tempConnection_->updateEndPoint(event->scenePos());
         event->accept();
         return;
@@ -268,48 +272,121 @@ void EditorScene::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
 }
 
 void EditorScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
-    if (tempConnection_) {
-        auto* item = itemAt(event->scenePos(), QTransform());
-        auto* targetPort = dynamic_cast<PortWidget*>(item);
-
+    if (tempConnection_ && dragSourcePort_) {
         bool connected = false;
-        if (targetPort && dragSourcePort_) {
-            if (targetPort->port()->direction() == PortDirection::Input &&
-                targetPort->port()->parentNode() != dragSourcePort_->port()->parentNode()) {
-                if (typesCompatible(dragSourcePort_->port()->type(),
-                                    targetPort->port()->type())) {
-                    auto* cw = addConnectionWidget(dragSourcePort_, targetPort);
-                    if (cw) {
-                        connected = true;
-                        emit connectionCreated(cw->connection());
-                        emit graphModified();
+
+        QList<QGraphicsItem*> itemsAtPos = items(event->scenePos(), Qt::IntersectsItemShape, Qt::DescendingOrder);
+        for (auto* item : itemsAtPos) {
+            auto* targetPort = dynamic_cast<PortWidget*>(item);
+            if (targetPort && targetPort != dragSourcePort_) {
+                bool isSourceOutput = (dragSourcePort_->port()->direction() == PortDirection::Output);
+                bool isTargetInput = (targetPort->port()->direction() == PortDirection::Input);
+
+                if (targetPort->port()->parentNode() != dragSourcePort_->port()->parentNode()) {
+                    if (typesCompatible(dragSourcePort_->port()->type(), targetPort->port()->type())) {
+                        PortWidget* srcPort = nullptr;
+                        PortWidget* tgtPort = nullptr;
+
+                        if (isSourceOutput && isTargetInput) {
+                            srcPort = dragSourcePort_;
+                            tgtPort = targetPort;
+                        } else if (!isSourceOutput && !isTargetInput) {
+                            srcPort = targetPort;
+                            tgtPort = dragSourcePort_;
+                        } else {
+                            continue;
+                        }
+
+                        if (pickedUpConnection_ && pickedUpConnection_->targetPort() != tgtPort) {
+                            removeConnectionWidget(pickedUpConnection_);
+                            pickedUpConnection_ = nullptr;
+                        } else if (pickedUpConnection_ && pickedUpConnection_->targetPort() == tgtPort) {
+                            pickedUpConnection_->setVisible(true);
+                            pickedUpConnection_ = nullptr;
+                            connected = true;
+                            break;
+                        }
+                        auto* cw = addConnectionWidget(srcPort, tgtPort);
+                        if (cw) {
+                            connected = true;
+                            emit connectionCreated(cw->connection());
+                            emit graphModified();
+                            break;
+                        }
                     }
                 }
             }
         }
 
         if (!connected && typeLister_ && nodeCreator_) {
-            // Dropped on blank area → show node picker popup
             QPointF dropPos = event->scenePos();
-            // We need to defer showing the dialog because we're in mouseReleaseEvent
-            // Use a single-shot timer to avoid re-entrance issues
-            QMetaObject::invokeMethod(this, [this, dropPos]() {
-                showNodePicker(dropPos);
-            }, Qt::QueuedConnection);
+            if (pickedUpConnection_) {
+                removeConnectionWidget(pickedUpConnection_);
+                pickedUpConnection_ = nullptr;
+                emit graphModified();
+            }
+            QTimer::singleShot(10, this, [this, dropPos]() {
+                showInlinePicker(dropPos);
+            });
+        } else if (!connected && pickedUpConnection_) {
+            pickedUpConnection_->setVisible(true);
+            pickedUpConnection_ = nullptr;
         }
 
-        removeItem(tempConnection_);
-        delete tempConnection_;
-        tempConnection_ = nullptr;
-        dragSourcePort_ = nullptr;
-
-        if (connected) {
-            event->accept();
-            return;
-        }
+        cleanupTempConnection();
+        event->accept();
+        return;
     }
 
     QGraphicsScene::mouseReleaseEvent(event);
+}
+
+void EditorScene::showInlinePicker(const QPointF& scenePos) {
+    if (!typeLister_ || !nodeCreator_) return;
+
+    closeInlinePicker();
+
+    DataType srcType = DataType::Generic;
+    if (dragSourcePort_) {
+        srcType = dragSourcePort_->port()->type();
+    }
+
+    inlinePicker_ = new InlineNodePicker(this, scenePos, srcType, typeLister_);
+
+    connect(inlinePicker_, &InlineNodePicker::nodeSelected, this, [this, scenePos](const std::string& type) {
+        if (!type.empty()) {
+            float nx = static_cast<float>(scenePos.x());
+            float ny = static_cast<float>(scenePos.y());
+            Node* newNode = nodeCreator_(type, nx, ny);
+
+            if (newNode && dragSourcePort_) {
+                auto* newNodeWidget = findNodeWidget(newNode);
+                if (newNodeWidget) {
+                    for (const auto& input : newNode->inputs()) {
+                        if (typesCompatible(dragSourcePort_->port()->type(), input->type())) {
+                            auto* tgtPort = newNodeWidget->findPortWidget(input->name(), true);
+                            if (tgtPort) {
+                                auto* cw = addConnectionWidget(dragSourcePort_, tgtPort);
+                                if (cw) {
+                                    emit connectionCreated(cw->connection());
+                                    emit graphModified();
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        closeInlinePicker();
+    });
+}
+
+void EditorScene::closeInlinePicker() {
+    if (inlinePicker_) {
+        delete inlinePicker_;
+        inlinePicker_ = nullptr;
+    }
 }
 
 void EditorScene::keyPressEvent(QKeyEvent* event) {
@@ -362,6 +439,38 @@ void EditorScene::drawBackground(QPainter* painter, const QRectF& rect) {
     painter->drawLines(minorLines.data(), minorLines.size());
     painter->setPen(majorGridPen);
     painter->drawLines(majorLines.data(), majorLines.size());
+}
+
+void EditorScene::dragEnterEvent(QGraphicsSceneDragDropEvent* event) {
+    if (event->mimeData()->hasFormat("application/x-qblock-node-type")) {
+        event->acceptProposedAction();
+    }
+}
+
+void EditorScene::dragMoveEvent(QGraphicsSceneDragDropEvent* event) {
+    if (event->mimeData()->hasFormat("application/x-qblock-node-type")) {
+        event->acceptProposedAction();
+    }
+}
+
+void EditorScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
+    if (!event->mimeData()->hasFormat("application/x-qblock-node-type")) return;
+
+    QString typeName = QString::fromUtf8(event->mimeData()->data("application/x-qblock-node-type"));
+    if (typeName.isEmpty()) return;
+
+    if (!nodeCreator_) return;
+
+    QPointF scenePos = event->scenePos();
+    float x = static_cast<float>(scenePos.x());
+    float y = static_cast<float>(scenePos.y());
+
+    Node* newNode = nodeCreator_(typeName.toStdString(), x, y);
+    if (newNode) {
+        emit graphModified();
+    }
+
+    event->acceptProposedAction();
 }
 
 } // namespace QBlock

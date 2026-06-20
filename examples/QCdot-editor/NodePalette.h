@@ -3,39 +3,33 @@
 
 #include <QBlock/NodeEditor.h>
 #include <QBlock/Translator.h>
+#include <QBlock/NodeIconFactory.h>
+#include <QBlock/ThemeManager.h>
 #include <QListWidget>
-#include <QLabel>
-#include <QVBoxLayout>
+#include <QComboBox>
+#include <QDrag>
+#include <QMimeData>
 
-/// Side panel with a list of available nodes for drag-and-drop.
-/// Full Chinese/English bilingual support.
-class NodePalette : public QWidget {
+class NodePalette : public QListWidget {
     Q_OBJECT
 public:
     explicit NodePalette(QBlock::NodeEditor* editor, QWidget* parent = nullptr)
-        : QWidget(parent), editor_(editor)
+        : QListWidget(parent), editor_(editor)
     {
-        auto* layout = new QVBoxLayout(this);
-        layout->setContentsMargins(4, 4, 4, 4);
-
-        titleLabel_ = new QLabel();
-        titleLabel_->setStyleSheet("color: #ccc; padding: 4px;");
-        titleLabel_->setTextFormat(Qt::RichText);
-        layout->addWidget(titleLabel_);
-
-        list_ = new QListWidget(this);
-        list_->setStyleSheet(
-            "QListWidget { background: #2a2a32; border: 1px solid #444; color: #ccc; }"
-            "QListWidget::item { padding: 4px 8px; }"
-            "QListWidget::item:hover { background: #3a3a48; }"
-            "QListWidget::item:selected { background: #4a4a5a; }"
-        );
-        layout->addWidget(list_);
+        setIconSize(QSize(32, 32));
+        setSpacing(8);
+        setViewMode(QListView::IconMode);
+        setResizeMode(QListView::Adjust);
+        setMovement(QListView::Static);
+        setGridSize(QSize(72, 88));
+        setTextElideMode(Qt::ElideMiddle);
+        setDragEnabled(true);
+        setDragDropMode(QListWidget::DragOnly);
 
         populateNodes();
+        refreshList();
         updateTranslations();
-
-        connect(list_, &QListWidget::itemDoubleClicked, this, &NodePalette::onNodeDoubleClicked);
+        applyThemeStyle();
 
         if (editor_) {
             connect(editor_, &QBlock::NodeEditor::languageChanged, this, [this]() {
@@ -43,87 +37,128 @@ public:
                 updateTranslations();
             });
         }
+
+        QBlock::ThemeManager::onThemeChanged([this]() {
+            applyThemeStyle();
+        });
+    }
+
+protected:
+    void startDrag(Qt::DropActions supportedActions) override {
+        Q_UNUSED(supportedActions);
+        auto* item = currentItem();
+        if (!item) return;
+
+        auto* mimeData = new QMimeData();
+        QString typeName = item->data(Qt::UserRole).toString();
+        mimeData->setData("application/x-qblock-node-type", typeName.toUtf8());
+
+        auto* drag = new QDrag(this);
+        drag->setMimeData(mimeData);
+        drag->setPixmap(item->icon().pixmap(32, 32));
+        drag->setHotSpot(QPoint(16, 16));
+
+        drag->exec(Qt::CopyAction);
     }
 
 private:
     struct NodeEntry {
-        QString typeName;  // internal type name (not translated)
-        QString trKey;     // translation key
+        QString typeName;
+        QString trKey;
+        QString category;
     };
 
     void populateNodes() {
-        // Same order as the original list
         nodes_ = {
-            {"Add",            QStringLiteral("node.Add")},
-            {"Subtract",       QStringLiteral("node.Subtract")},
-            {"Multiply",       QStringLiteral("node.Multiply")},
-            {"Divide",         QStringLiteral("node.Divide")},
-            {"Modulo",         QStringLiteral("node.Modulo")},
-            {"Power",          QStringLiteral("node.Power")},
-            {"Sqrt",           QStringLiteral("node.Sqrt")},
-            {"Equal",          QStringLiteral("node.Equal")},
-            {"GreaterThan",    QStringLiteral("node.GreaterThan")},
-            {"LessThan",       QStringLiteral("node.LessThan")},
-            {"And",            QStringLiteral("node.And")},
-            {"Or",             QStringLiteral("node.Or")},
-            {"Not",            QStringLiteral("node.Not")},
-            {"IfElse",         QStringLiteral("node.IfElse")},
-            {"IfElseBranch",   QStringLiteral("node.IfElseBranch")},
-            {"ConstantInt",    QStringLiteral("node.ConstantInt")},
-            {"ConstantFloat",  QStringLiteral("node.ConstantFloat")},
-            {"ConstantBool",   QStringLiteral("node.ConstantBool")},
-            {"ConstantString", QStringLiteral("node.ConstantString")},
-            {"IntToFloat",     QStringLiteral("node.IntToFloat")},
-            {"FloatToInt",     QStringLiteral("node.FloatToInt")},
-            {"ToString",       QStringLiteral("node.ToString")},
-            {"StringConcat",   QStringLiteral("node.StringConcat")},
-            {"StringLength",   QStringLiteral("node.StringLength")},
-            {"StringSubstring",QStringLiteral("node.StringSubstring")},
-            {"Print",          QStringLiteral("node.Print")},
-            {"BinaryAnd",      QStringLiteral("node.BinaryAnd")},
-            {"BinaryOr",       QStringLiteral("node.BinaryOr")},
-            {"BinaryXor",      QStringLiteral("node.BinaryXor")},
-            {"ShiftLeft",      QStringLiteral("node.ShiftLeft")},
-            {"ShiftRight",     QStringLiteral("node.ShiftRight")},
-            {"FileReadText",   QStringLiteral("node.FileReadText")},
-            {"FileWriteText",  QStringLiteral("node.FileWriteText")},
-            {"FileReadBinary", QStringLiteral("node.FileReadBinary")},
-            {"RandomInt",      QStringLiteral("node.RandomInt")},
-            {"Sleep",          QStringLiteral("node.Sleep")},
+            {"Add",             "node.Add",             "math"},
+            {"Subtract",        "node.Subtract",        "math"},
+            {"Multiply",        "node.Multiply",        "math"},
+            {"Divide",          "node.Divide",          "math"},
+            {"Modulo",          "node.Modulo",          "math"},
+            {"Power",           "node.Power",           "math"},
+            {"Sqrt",            "node.Sqrt",            "math"},
+            {"Equal",           "node.Equal",           "logic"},
+            {"GreaterThan",     "node.GreaterThan",     "logic"},
+            {"LessThan",        "node.LessThan",        "logic"},
+            {"And",             "node.And",             "logic"},
+            {"Or",              "node.Or",              "logic"},
+            {"Not",             "node.Not",             "logic"},
+            {"IfElse",          "node.IfElse",          "logic"},
+            {"IfElseBranch",    "node.IfElseBranch",    "logic"},
+            {"ConstantInt",     "node.ConstantInt",     "data"},
+            {"ConstantFloat",   "node.ConstantFloat",   "data"},
+            {"ConstantBool",    "node.ConstantBool",    "data"},
+            {"ConstantString",  "node.ConstantString",  "data"},
+            {"Variable",        "node.Variable",        "data"},
+            {"Counter",         "node.Counter",         "data"},
+            {"IntToFloat",      "node.IntToFloat",      "convert"},
+            {"FloatToInt",      "node.FloatToInt",      "convert"},
+            {"ToString",        "node.ToString",        "convert"},
+            {"StringConcat",    "node.StringConcat",    "string"},
+            {"StringLength",    "node.StringLength",    "string"},
+            {"StringSubstring", "node.StringSubstring", "string"},
+            {"Print",           "node.Print",           "output"},
+            {"BinaryAnd",       "node.BinaryAnd",       "bitwise"},
+            {"BinaryOr",        "node.BinaryOr",        "bitwise"},
+            {"BinaryXor",       "node.BinaryXor",       "bitwise"},
+            {"ShiftLeft",       "node.ShiftLeft",       "bitwise"},
+            {"ShiftRight",      "node.ShiftRight",      "bitwise"},
+            {"FileReadText",    "node.FileReadText",    "file"},
+            {"FileWriteText",   "node.FileWriteText",   "file"},
+            {"FileReadBinary",  "node.FileReadBinary",  "file"},
+            {"RandomInt",       "node.RandomInt",       "util"},
+            {"Sleep",           "node.Sleep",           "util"},
+            {"Color",           "node.Color",           "qt"},
+            {"QtMainWindow",    "node.QtMainWindow",    "qt"},
+            {"QtButton",        "node.QtButton",        "qt"},
+            {"QtLabel",         "node.QtLabel",         "qt"},
+            {"QtLineEdit",      "node.QtLineEdit",      "qt"},
+            {"QtTabWidget",     "node.QtTabWidget",     "qt"},
+            {"QtLayout",        "node.QtLayout",        "qt"},
+            {"QtSlider",        "node.QtSlider",        "qt"},
+            {"QtCheckBox",      "node.QtCheckBox",      "qt"},
+            {"QtComboBox",      "node.QtComboBox",      "qt"},
+            {"QtSpinBox",       "node.QtSpinBox",       "qt"},
+            {"QtProgressBar",   "node.QtProgressBar",   "qt"},
         };
     }
 
     void refreshList() {
-        list_->clear();
+        clear();
+
         for (const auto& entry : nodes_) {
             QString display = QBlock::Translator::tr(entry.trKey);
-            // Chinese-only mode: don't show English fallback
-            if (QBlock::Translator::currentLanguage() == QStringLiteral("zh")) {
-                // Only show Chinese name, no English
-            } else {
-                // English mode: show English name
-            }
-            auto* item = new QListWidgetItem(display, list_);
+            auto* item = new QListWidgetItem(display, this);
+            item->setIcon(QIcon(QBlock::createNodeIcon(entry.typeName.toStdString())));
             item->setData(Qt::UserRole, entry.typeName);
+            item->setTextAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+            item->setToolTip(display);
         }
     }
 
     void updateTranslations() {
-        setWindowTitle(QBlock::Translator::tr("palette.title"));
-        titleLabel_->setText(QStringLiteral("<b>") + QBlock::Translator::tr("palette.nodes") + QStringLiteral("</b>"));
+        setWindowTitle(QBlock::Translator::tr("palette.nodes"));
     }
 
-    void onNodeDoubleClicked(QListWidgetItem* item) {
-        if (!editor_) return;
-        std::string typeName = item->data(Qt::UserRole).toString().toStdString();
-        float x = 100.0f + static_cast<float>(std::rand() % 400);
-        float y = 100.0f + static_cast<float>(std::rand() % 300);
-        editor_->addNode(typeName, x, y);
+    void applyThemeStyle() {
+        QColor bg = QBlock::ThemeManager::panelBg();
+        QColor border = QBlock::ThemeManager::panelBorder();
+        QColor listBg = QBlock::ThemeManager::listBg();
+        QColor itemHover = QBlock::ThemeManager::listItemHover();
+        QColor itemSel = QBlock::ThemeManager::listItemSelected();
+        QColor text = QBlock::ThemeManager::textPrimary();
+
+        QString style = QString(
+            "QListWidget { background: %1; color: %2; border: 1px solid %3; padding: 6px; }"
+            "QListWidget::item { border-radius: 4px; padding: 4px; }"
+            "QListWidget::item:selected { background: %4; color: #fff; }"
+            "QListWidget::item:hover { background: %5; }"
+        ).arg(listBg.name(), text.name(), border.name(), itemSel.name(), itemHover.name());
+
+        setStyleSheet(style);
     }
 
     QBlock::NodeEditor* editor_;
-    QListWidget* list_;
-    QLabel* titleLabel_;
     std::vector<NodeEntry> nodes_;
 };
 

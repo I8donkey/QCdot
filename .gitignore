@@ -33,4 +33,4 @@ Thumbs.db
 
 # Debug logs
 debug-qpainter-engine-error.md
-.dbg/
+.dbg/.trae/

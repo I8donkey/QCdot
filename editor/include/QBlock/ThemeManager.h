@@ -43,6 +43,13 @@ public:
     static QColor toolbarBg();
     static QColor toolbarBtn();
     static QColor toolbarBtnHover();
+    static QColor dialogBg();
+    static QColor dialogBorder();
+    static QColor listBg();
+    static QColor listItemHover();
+    static QColor listItemSelected();
+    static QColor connectionLine();
+    static QColor accentColor();
 
 private:
     ThemeManager() = default;

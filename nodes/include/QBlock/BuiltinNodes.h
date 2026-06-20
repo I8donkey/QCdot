@@ -241,10 +241,11 @@ public:
 // Variable / Constant Nodes
 // ============================================================================
 
+/// Constant node holding a fixed integer value.
+/// Double-click in editor to edit the value.
 class ConstantIntNode final : public Node {
 public:
     ConstantIntNode() {
-        addInput("value", DataType::Integer);
         addOutput("value", DataType::Integer);
     }
     std::string typeName() const override { return "ConstantInt"; }
@@ -253,24 +254,18 @@ public:
     void setValue(int64_t v) { value_ = v; }
     int64_t value() const { return value_; }
 
-    void process(const VariantMap& in, VariantMap& out) override {
-        // If input is connected, pass through; otherwise use internal value
-        auto it = in.find("value");
-        if (it != in.end() && it->second.isValid()) {
-            out["value"] = it->second;
-        } else {
-            out["value"] = Variant(value_);
-        }
+    void process(const VariantMap&, VariantMap& out) override {
+        out["value"] = Variant(value_);
     }
 
 private:
     int64_t value_ = 0;
 };
 
+/// Constant node holding a fixed floating-point value.
 class ConstantFloatNode final : public Node {
 public:
     ConstantFloatNode() {
-        addInput("value", DataType::Float);
         addOutput("value", DataType::Float);
     }
     std::string typeName() const override { return "ConstantFloat"; }
@@ -279,23 +274,18 @@ public:
     void setValue(double v) { value_ = v; }
     double value() const { return value_; }
 
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("value");
-        if (it != in.end() && it->second.isValid()) {
-            out["value"] = it->second;
-        } else {
-            out["value"] = Variant(value_);
-        }
+    void process(const VariantMap&, VariantMap& out) override {
+        out["value"] = Variant(value_);
     }
 
 private:
     double value_ = 0.0;
 };
 
+/// Constant node holding a boolean value.
 class ConstantBoolNode final : public Node {
 public:
     ConstantBoolNode() {
-        addInput("value", DataType::Boolean);
         addOutput("value", DataType::Boolean);
     }
     std::string typeName() const override { return "ConstantBool"; }
@@ -304,42 +294,441 @@ public:
     void setValue(bool v) { value_ = v; }
     bool value() const { return value_; }
 
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("value");
-        if (it != in.end() && it->second.isValid()) {
-            out["value"] = it->second;
-        } else {
-            out["value"] = Variant(value_);
-        }
+    void process(const VariantMap&, VariantMap& out) override {
+        out["value"] = Variant(value_);
     }
 
 private:
     bool value_ = false;
 };
 
+/// Constant node holding a string value.
 class ConstantStringNode final : public Node {
 public:
     ConstantStringNode() {
-        addInput("value", DataType::String);
         addOutput("value", DataType::String);
     }
     std::string typeName() const override { return "ConstantString"; }
     std::string nodeTitle() const override { return "Const String"; }
 
     void setValue(const std::string& v) { value_ = v; }
-    std::string value() const { return value_; }
+    const std::string& value() const { return value_; }
 
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("value");
-        if (it != in.end() && it->second.isValid()) {
-            out["value"] = it->second;
-        } else {
-            out["value"] = Variant(value_);
-        }
+    void process(const VariantMap&, VariantMap& out) override {
+        out["value"] = Variant(value_);
     }
 
 private:
     std::string value_;
+};
+
+// ============================================================================
+// Variable Node - read/write storage cell
+//   - Has an optional input "set" to set its value
+//   - Has an output "value" that outputs the currently stored value
+// ============================================================================
+
+class VariableNode final : public Node {
+public:
+    VariableNode() {
+        addInput("set", DataType::Generic);
+        addOutput("value", DataType::Generic);
+    }
+    std::string typeName() const override { return "Variable"; }
+    std::string nodeTitle() const override { return "Variable"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto it = in.find("set");
+        if (it != in.end() && it->second.isValid()) {
+            storedValue_ = it->second;
+        }
+        out["value"] = storedValue_;
+    }
+
+private:
+    Variant storedValue_;
+};
+
+// ============================================================================
+// Counter Node - increments on each execution
+//   - Input "increment": amount to add (defaults to 1)
+//   - Input "reset": resets counter to 0 when a value arrives
+//   - Output "value": current counter value
+// ============================================================================
+
+class CounterNode final : public Node {
+public:
+    CounterNode() {
+        addInput("increment", DataType::Integer);
+        addInput("reset", DataType::Boolean);
+        addOutput("value", DataType::Integer);
+    }
+    std::string typeName() const override { return "Counter"; }
+    std::string nodeTitle() const override { return "Counter"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        // If reset port has a value that is truthy, reset counter
+        auto resetIt = in.find("reset");
+        if (resetIt != in.end() && resetIt->second.isValid() && resetIt->second.toBool()) {
+            counter_ = 0;
+        } else {
+            // Otherwise increment by the increment value (or 1 by default)
+            int64_t inc = 1;
+            auto incIt = in.find("increment");
+            if (incIt != in.end() && incIt->second.isValid()) {
+                inc = incIt->second.toInt();
+            }
+            counter_ += inc;
+        }
+        out["value"] = Variant(counter_);
+    }
+
+private:
+    int64_t counter_ = 0;
+};
+
+// ============================================================================
+// Qt UI Design Nodes
+// ============================================================================
+
+/// Color node - stores RGBA color values for UI styling
+class ColorNode final : public Node {
+public:
+    ColorNode() {
+        addInput("r", DataType::Integer);
+        addInput("g", DataType::Integer);
+        addInput("b", DataType::Integer);
+        addInput("a", DataType::Integer);
+        addOutput("color", DataType::String);
+    }
+    std::string typeName() const override { return "Color"; }
+    std::string nodeTitle() const override { return "Color"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        int r = 0, g = 0, b = 0, a = 255;
+        auto it = in.find("r"); if (it != in.end() && it->second.isValid()) r = static_cast<int>(it->second.toInt());
+        it = in.find("g"); if (it != in.end() && it->second.isValid()) g = static_cast<int>(it->second.toInt());
+        it = in.find("b"); if (it != in.end() && it->second.isValid()) b = static_cast<int>(it->second.toInt());
+        it = in.find("a"); if (it != in.end() && it->second.isValid()) a = static_cast<int>(it->second.toInt());
+        // Clamp values
+        r = std::max(0, std::min(255, r));
+        g = std::max(0, std::min(255, g));
+        b = std::max(0, std::min(255, b));
+        a = std::max(0, std::min(255, a));
+        // Output as CSS color string
+        char buf[32];
+        if (a == 255) {
+            snprintf(buf, sizeof(buf), "#%02X%02X%02X", r, g, b);
+        } else {
+            snprintf(buf, sizeof(buf), "rgba(%d,%d,%d,%d)", r, g, b, a);
+        }
+        out["color"] = Variant(std::string(buf));
+    }
+};
+
+/// Qt MainWindow node - top-level window container
+class QtMainWindowNode final : public Node {
+public:
+    QtMainWindowNode() {
+        addInput("title", DataType::String);
+        addInput("width", DataType::Integer);
+        addInput("height", DataType::Integer);
+        addInput("style", DataType::String);
+        addInput("widget1", DataType::Generic);
+        addInput("widget2", DataType::Generic);
+        addInput("widget3", DataType::Generic);
+        addOutput("window", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtMainWindow"; }
+    std::string nodeTitle() const override { return "Main Window"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        title_ = "Qt Window";
+        width_ = 800;
+        height_ = 600;
+        style_.clear();
+
+        auto it = in.find("title");
+        if (it != in.end() && it->second.isValid()) title_ = it->second.toString().toStdString();
+        it = in.find("width");
+        if (it != in.end() && it->second.isValid()) width_ = static_cast<int>(it->second.toInt());
+        it = in.find("height");
+        if (it != in.end() && it->second.isValid()) height_ = static_cast<int>(it->second.toInt());
+        it = in.find("style");
+        if (it != in.end() && it->second.isValid()) style_ = it->second.toString().toStdString();
+
+        out["window"] = Variant(title_);
+    }
+
+private:
+    std::string title_;
+    int width_ = 800;
+    int height_ = 600;
+    std::string style_;
+};
+
+/// Qt Button node - clickable button widget
+class QtButtonNode final : public Node {
+public:
+    QtButtonNode() {
+        addInput("text", DataType::String);
+        addInput("style", DataType::String);
+        addInput("enabled", DataType::Boolean);
+        addOutput("clicked", DataType::Boolean);
+        addOutput("widget", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtButton"; }
+    std::string nodeTitle() const override { return "Button"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        std::string text = "Button";
+        std::string style;
+        bool enabled = true;
+
+        auto it = in.find("text");
+        if (it != in.end() && it->second.isValid()) text = it->second.toString().toStdString();
+        it = in.find("style");
+        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
+        it = in.find("enabled");
+        if (it != in.end() && it->second.isValid()) enabled = it->second.toBool();
+
+        out["clicked"] = Variant(false);
+        out["widget"] = Variant(text);
+    }
+};
+
+/// Qt Label node - text display widget
+class QtLabelNode final : public Node {
+public:
+    QtLabelNode() {
+        addInput("text", DataType::String);
+        addInput("style", DataType::String);
+        addOutput("widget", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtLabel"; }
+    std::string nodeTitle() const override { return "Label"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        std::string text = "Label";
+        std::string style;
+
+        auto it = in.find("text");
+        if (it != in.end() && it->second.isValid()) text = it->second.toString().toStdString();
+        it = in.find("style");
+        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
+
+        out["widget"] = Variant(text);
+    }
+};
+
+/// Qt LineEdit node - text input widget
+class QtLineEditNode final : public Node {
+public:
+    QtLineEditNode() {
+        addInput("placeholder", DataType::String);
+        addInput("style", DataType::String);
+        addInput("enabled", DataType::Boolean);
+        addOutput("text", DataType::String);
+        addOutput("widget", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtLineEdit"; }
+    std::string nodeTitle() const override { return "Line Edit"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        std::string placeholder;
+        std::string style;
+        bool enabled = true;
+
+        auto it = in.find("placeholder");
+        if (it != in.end() && it->second.isValid()) placeholder = it->second.toString().toStdString();
+        it = in.find("style");
+        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
+        it = in.find("enabled");
+        if (it != in.end() && it->second.isValid()) enabled = it->second.toBool();
+
+        out["text"] = Variant(std::string());
+        out["widget"] = Variant(placeholder);
+    }
+};
+
+/// Qt TabWidget node - tabbed container
+class QtTabWidgetNode final : public Node {
+public:
+    QtTabWidgetNode() {
+        addInput("tab1", DataType::Generic);
+        addInput("tab2", DataType::Generic);
+        addInput("tab3", DataType::Generic);
+        addInput("style", DataType::String);
+        addOutput("currentTab", DataType::Integer);
+        addOutput("widget", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtTabWidget"; }
+    std::string nodeTitle() const override { return "Tab Widget"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        (void)in; // Suppress unused parameter warning
+        out["currentTab"] = Variant(static_cast<int64_t>(0));
+        out["widget"] = Variant(std::string("TabWidget"));
+    }
+};
+
+/// Qt Layout node - vertical/horizontal layout container
+class QtLayoutNode final : public Node {
+public:
+    QtLayoutNode() {
+        addInput("item1", DataType::Generic);
+        addInput("item2", DataType::Generic);
+        addInput("item3", DataType::Generic);
+        addInput("direction", DataType::String);
+        addOutput("layout", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtLayout"; }
+    std::string nodeTitle() const override { return "Layout"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        std::string dir = "vertical";
+        auto it = in.find("direction");
+        if (it != in.end() && it->second.isValid()) dir = it->second.toString().toStdString();
+        out["layout"] = Variant(dir);
+    }
+};
+
+/// Qt Slider node - value slider widget
+class QtSliderNode final : public Node {
+public:
+    QtSliderNode() {
+        addInput("min", DataType::Integer);
+        addInput("max", DataType::Integer);
+        addInput("value", DataType::Integer);
+        addInput("style", DataType::String);
+        addOutput("value", DataType::Integer);
+        addOutput("widget", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtSlider"; }
+    std::string nodeTitle() const override { return "Slider"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        int64_t minVal = 0, maxVal = 100, val = 50;
+
+        auto it = in.find("min");
+        if (it != in.end() && it->second.isValid()) minVal = it->second.toInt();
+        it = in.find("max");
+        if (it != in.end() && it->second.isValid()) maxVal = it->second.toInt();
+        it = in.find("value");
+        if (it != in.end() && it->second.isValid()) val = it->second.toInt();
+
+        // Clamp value
+        val = std::max(minVal, std::min(maxVal, val));
+        out["value"] = Variant(val);
+        out["widget"] = Variant(std::string("Slider"));
+    }
+};
+
+/// Qt CheckBox node - checkbox widget
+class QtCheckBoxNode final : public Node {
+public:
+    QtCheckBoxNode() {
+        addInput("text", DataType::String);
+        addInput("checked", DataType::Boolean);
+        addInput("style", DataType::String);
+        addOutput("checked", DataType::Boolean);
+        addOutput("widget", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtCheckBox"; }
+    std::string nodeTitle() const override { return "Check Box"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        std::string text = "CheckBox";
+        bool checked = false;
+
+        auto it = in.find("text");
+        if (it != in.end() && it->second.isValid()) text = it->second.toString().toStdString();
+        it = in.find("checked");
+        if (it != in.end() && it->second.isValid()) checked = it->second.toBool();
+
+        out["checked"] = Variant(checked);
+        out["widget"] = Variant(text);
+    }
+};
+
+/// Qt ComboBox node - dropdown selection widget
+class QtComboBoxNode final : public Node {
+public:
+    QtComboBoxNode() {
+        addInput("items", DataType::String);
+        addInput("style", DataType::String);
+        addOutput("currentText", DataType::String);
+        addOutput("currentIndex", DataType::Integer);
+        addOutput("widget", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtComboBox"; }
+    std::string nodeTitle() const override { return "Combo Box"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        std::string items = "Item1;Item2;Item3";
+
+        auto it = in.find("items");
+        if (it != in.end() && it->second.isValid()) items = it->second.toString().toStdString();
+
+        out["currentText"] = Variant(std::string("Item1"));
+        out["currentIndex"] = Variant(static_cast<int64_t>(0));
+        out["widget"] = Variant(items);
+    }
+};
+
+/// Qt SpinBox node - number input with arrows
+class QtSpinBoxNode final : public Node {
+public:
+    QtSpinBoxNode() {
+        addInput("min", DataType::Integer);
+        addInput("max", DataType::Integer);
+        addInput("value", DataType::Integer);
+        addInput("style", DataType::String);
+        addOutput("value", DataType::Integer);
+        addOutput("widget", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtSpinBox"; }
+    std::string nodeTitle() const override { return "Spin Box"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        int64_t minVal = 0, maxVal = 100, val = 0;
+
+        auto it = in.find("min");
+        if (it != in.end() && it->second.isValid()) minVal = it->second.toInt();
+        it = in.find("max");
+        if (it != in.end() && it->second.isValid()) maxVal = it->second.toInt();
+        it = in.find("value");
+        if (it != in.end() && it->second.isValid()) val = it->second.toInt();
+
+        val = std::max(minVal, std::min(maxVal, val));
+        out["value"] = Variant(val);
+        out["widget"] = Variant(std::string("SpinBox"));
+    }
+};
+
+/// Qt ProgressBar node - progress indicator
+class QtProgressBarNode final : public Node {
+public:
+    QtProgressBarNode() {
+        addInput("value", DataType::Integer);
+        addInput("max", DataType::Integer);
+        addInput("style", DataType::String);
+        addOutput("widget", DataType::Generic);
+    }
+    std::string typeName() const override { return "QtProgressBar"; }
+    std::string nodeTitle() const override { return "Progress Bar"; }
+
+    void process(const VariantMap& in, VariantMap& out) override {
+        int64_t val = 0, maxVal = 100;
+
+        auto it = in.find("value");
+        if (it != in.end() && it->second.isValid()) val = it->second.toInt();
+        it = in.find("max");
+        if (it != in.end() && it->second.isValid()) maxVal = it->second.toInt();
+
+        val = std::max(int64_t(0), std::min(maxVal, val));
+        out["widget"] = Variant(std::string("ProgressBar"));
+    }
 };
 
 // ============================================================================
@@ -679,6 +1068,21 @@ inline std::unique_ptr<Node> createBuiltinNode(const std::string& typeName) {
     if (typeName == "FileReadBinary")   return std::make_unique<FileReadBinaryNode>();
     if (typeName == "RandomInt")        return std::make_unique<RandomIntNode>();
     if (typeName == "Sleep")            return std::make_unique<SleepNode>();
+    if (typeName == "Variable")         return std::make_unique<VariableNode>();
+    if (typeName == "Counter")          return std::make_unique<CounterNode>();
+    // Qt UI nodes
+    if (typeName == "Color")            return std::make_unique<ColorNode>();
+    if (typeName == "QtMainWindow")     return std::make_unique<QtMainWindowNode>();
+    if (typeName == "QtButton")         return std::make_unique<QtButtonNode>();
+    if (typeName == "QtLabel")          return std::make_unique<QtLabelNode>();
+    if (typeName == "QtLineEdit")       return std::make_unique<QtLineEditNode>();
+    if (typeName == "QtTabWidget")      return std::make_unique<QtTabWidgetNode>();
+    if (typeName == "QtLayout")         return std::make_unique<QtLayoutNode>();
+    if (typeName == "QtSlider")         return std::make_unique<QtSliderNode>();
+    if (typeName == "QtCheckBox")       return std::make_unique<QtCheckBoxNode>();
+    if (typeName == "QtComboBox")       return std::make_unique<QtComboBoxNode>();
+    if (typeName == "QtSpinBox")        return std::make_unique<QtSpinBoxNode>();
+    if (typeName == "QtProgressBar")    return std::make_unique<QtProgressBarNode>();
     return nullptr;
 }
 

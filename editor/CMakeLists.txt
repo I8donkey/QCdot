@@ -8,6 +8,7 @@ add_library(QBlockEditor STATIC
     include/QBlock/Translator.h
     include/QBlock/ThemeManager.h
     include/QBlock/NodePickerDialog.h
+    include/QBlock/InlineNodePicker.h
     src/PortWidget.cpp
     src/ConnectionWidget.cpp
     src/NodeWidget.cpp

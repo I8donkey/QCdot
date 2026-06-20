@@ -54,10 +54,18 @@ inline QString typeName(DataType type) {
 }
 
 /// Check whether two data types are compatible for connection.
+/// Numeric types (Integer, Float, Boolean) are mutually compatible.
 inline bool typesCompatible(DataType a, DataType b) {
     if (a == DataType::Generic || b == DataType::Generic)
         return true;
-    return a == b;
+    if (a == b)
+        return true;
+    // Numeric promotion: Integer, Float, Boolean are mutually compatible
+    bool aNumeric = (a == DataType::Integer || a == DataType::Float || a == DataType::Boolean);
+    bool bNumeric = (b == DataType::Integer || b == DataType::Float || b == DataType::Boolean);
+    if (aNumeric && bNumeric)
+        return true;
+    return false;
 }
 
 } // namespace QBlock

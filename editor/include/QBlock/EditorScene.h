@@ -3,10 +3,13 @@
 
 #include <QBlock/NodeGraph.h>
 #include <QBlock/ThemeManager.h>
+#include <QBlock/InlineNodePicker.h>
 #include "NodeWidget.h"
 #include "PortWidget.h"
 #include "ConnectionWidget.h"
 #include <QGraphicsScene>
+#include <QMetaObject>
+#include <QTimer>
 #include <unordered_map>
 #include <functional>
 
@@ -46,11 +49,6 @@ public:
 
     void clear();
 
-    // ---- Port drag handling ----
-    void startPortDrag(PortWidget* source);
-    void updatePortDrag(const QPointF& scenePos);
-    void endPortDrag(const QPointF& scenePos);
-
     /// Set a callback to list all available node types (for blank-area popup).
     using TypeLister = std::function<std::vector<std::string>()>;
     void setTypeLister(TypeLister lister) { typeLister_ = std::move(lister); }
@@ -58,6 +56,9 @@ public:
     /// Set a callback to create/add a node (for blank-area popup).
     using NodeCreator = std::function<Node*(const std::string& type, float x, float y)>;
     void setNodeCreator(NodeCreator creator) { nodeCreator_ = std::move(creator); }
+
+    /// Show the inline node picker at the given scene position.
+    void showInlinePicker(const QPointF& scenePos);
 
 signals:
     void nodeSelected(Node* node);
@@ -70,6 +71,9 @@ protected:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void drawBackground(QPainter* painter, const QRectF& rect) override;
+    void dragEnterEvent(QGraphicsSceneDragDropEvent* event) override;
+    void dragMoveEvent(QGraphicsSceneDragDropEvent* event) override;
+    void dropEvent(QGraphicsSceneDragDropEvent* event) override;
 
 private:
     NodeGraph* graph_ = nullptr;
@@ -78,13 +82,17 @@ private:
     // Dragging state for new connections
     PortWidget* dragSourcePort_ = nullptr;
     TempConnectionWidget* tempConnection_ = nullptr;
+    ConnectionWidget* pickedUpConnection_ = nullptr;
 
     // Callbacks for blank-area popup
     TypeLister typeLister_;
     NodeCreator nodeCreator_;
 
+    // Inline node picker
+    InlineNodePicker* inlinePicker_ = nullptr;
+
     void cleanupTempConnection();
-    void showNodePicker(const QPointF& scenePos);
+    void closeInlinePicker();
 };
 
 } // namespace QBlock

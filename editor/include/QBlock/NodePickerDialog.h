@@ -8,6 +8,9 @@
 #include <vector>
 #include <functional>
 
+class QLabel;
+class QPushButton;
+
 namespace QBlock {
 
 /// A dialog that appears when dragging a connection to a blank area.
@@ -28,9 +31,12 @@ public:
 private:
     void populateList(DataType sourceType, bool isInput,
                       std::function<std::vector<std::string>()> typeLister);
+    void applyThemeStyle();
 
     std::string selectedType_;
     QListWidget* list_ = nullptr;
+    QLabel* promptLabel_ = nullptr;
+    QPushButton* cancelBtn_ = nullptr;
 };
 
 } // namespace QBlock

@@ -32,13 +32,18 @@ public:
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
 protected:
+    QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
+    void hoverMoveEvent(QGraphicsSceneHoverEvent* event) override;
 
 private:
     void createPortWidgets();
     void layout();
+    bool isContainerNode() const;
+    void addContainerItem();
 
     Node* node_;
     QList<PortWidget*> inputPorts_;
@@ -50,9 +55,11 @@ private:
     static constexpr float kPadding = 8.0f;
     static constexpr float kShadowOffset = 3.0f;
     static constexpr float kMargin = 6.0f;
+    static constexpr float kAddButtonSize = 20.0f;
 
     bool dragging_ = false;
     QPointF dragStart_;
+    bool hoverAddButton_ = false;
 };
 
 } // namespace QBlock

@@ -13,7 +13,11 @@ ConnectionWidget::ConnectionWidget(PortWidget* source, PortWidget* target,
     , conn_(conn)
 {
     setZValue(5);
-    setPen(QPen(Qt::white, 2.0));
+    setAcceptHoverEvents(true);
+    // Use the source port's data type color (set in paint for hover too)
+    QColor typeColor = source_ && source_->port() ? source_->port()->color() : QColor(200, 200, 200);
+    setPen(QPen(typeColor, 2.5));
+    setFlag(QGraphicsItem::ItemIsSelectable, true);
     updatePath();
 
     if (source_)
@@ -53,28 +57,27 @@ void ConnectionWidget::setTarget(PortWidget* target) {
 }
 
 void ConnectionWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
-    QColor lineColor = Qt::white;
+    QColor lineColor = QColor(200, 200, 200);
     if (source_ && source_->port()) {
         lineColor = source_->port()->color();
     }
 
-    QPen pen(lineColor, 2.0, Qt::SolidLine, Qt::RoundCap);
-    if (isUnderMouse()) {
-        pen.setWidth(3.5);
-        pen.setColor(lineColor.lighter(150));
+    QPen pen(lineColor, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    if (isUnderMouse() || isSelected()) {
+        pen.setWidth(4.0);
+        pen.setColor(lineColor.lighter(140));
     }
     painter->setPen(pen);
     painter->setBrush(Qt::NoBrush);
     painter->setRenderHint(QPainter::Antialiasing);
     painter->drawPath(path());
 
-    // Draw arrow at target
+    // Draw small arrow dot near target end
     if (target_) {
-        QPointF end = target_->centerPos();
-        float t = 0.95;
-        QPointF p = path().pointAtPercent(t);
+        QPointF p = path().pointAtPercent(0.95);
         painter->setBrush(lineColor);
-        painter->drawEllipse(p, 3, 3);
+        painter->setPen(Qt::NoPen);
+        painter->drawEllipse(p, 3.5, 3.5);
     }
 }
 
@@ -85,8 +88,9 @@ TempConnectionWidget::TempConnectionWidget(PortWidget* source, QGraphicsItem* pa
     , source_(source)
 {
     setZValue(4);
-    QPen pen(Qt::white, 2.0, Qt::DashLine);
-    pen.setDashPattern({4, 4});
+    QColor typeColor = source_ && source_->port() ? source_->port()->color() : QColor(220, 220, 220);
+    QPen pen(typeColor, 2.5, Qt::DashLine, Qt::RoundCap, Qt::RoundJoin);
+    pen.setDashPattern({6, 4});
     setPen(pen);
 }
 

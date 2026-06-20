@@ -89,28 +89,39 @@ int main(int argc, char* argv[]) {
     // Create a demo graph
     auto* graph = editor->graph();
 
-    auto* a = editor->addNode("ConstantInt", 100, 80);
-    auto* b = editor->addNode("ConstantInt", 100, 180);
-    auto* add = editor->addNode("Add", 350, 120);
-    auto* print = editor->addNode("Print", 550, 120);
-
-    if (auto* aConst = dynamic_cast<QBlock::Builtin::ConstantIntNode*>(a))
+    // ---- Integer constants: setValue(int64_t) ----
+    auto* intA = editor->addNode("ConstantInt", 80, 60);
+    auto* intB = editor->addNode("ConstantInt", 80, 160);
+    if (auto* aConst = dynamic_cast<QBlock::Builtin::ConstantIntNode*>(intA))
         aConst->setValue(10);
-    if (auto* bConst = dynamic_cast<QBlock::Builtin::ConstantIntNode*>(b))
+    if (auto* bConst = dynamic_cast<QBlock::Builtin::ConstantIntNode*>(intB))
         bConst->setValue(20);
 
-    if (a && add && print) {
-        auto* aOut = a->outputs()[0].get();
-        auto* addInA = add->inputs()[0].get();
-        auto* bOut = b->outputs()[0].get();
-        auto* addInB = add->inputs()[1].get();
-        auto* addOut = add->outputs()[0].get();
-        auto* printIn = print->inputs()[0].get();
+    // ---- Float constants: setValue(double) ----
+    auto* floatA = editor->addNode("ConstantFloat", 80, 260);
+    if (auto* fConst = dynamic_cast<QBlock::Builtin::ConstantFloatNode*>(floatA))
+        fConst->setValue(3.14159);
 
-        graph->connect(aOut, addInA);
-        graph->connect(bOut, addInB);
-        graph->connect(addOut, printIn);
-    }
+    // ---- Boolean constants: setValue(bool) ----
+    auto* boolA = editor->addNode("ConstantBool", 80, 360);
+    if (auto* bConst = dynamic_cast<QBlock::Builtin::ConstantBoolNode*>(boolA))
+        bConst->setValue(true);
+
+    // ---- String constants: setValue(const std::string&) ----
+    auto* strA = editor->addNode("ConstantString", 80, 460);
+    if (auto* sConst = dynamic_cast<QBlock::Builtin::ConstantStringNode*>(strA))
+        sConst->setValue("Hello, qcdot!");
+
+    // ---- Computation & output nodes ----
+    auto* add = editor->addNode("Add", 320, 110);
+    auto* print = editor->addNode("Print", 560, 150);
+
+    // Connect: intA + intB -> add
+    if (intA && add) graph->connect(intA->outputs()[0].get(), add->inputs()[0].get());
+    if (intB && add) graph->connect(intB->outputs()[0].get(), add->inputs()[1].get());
+
+    // Connect: add result -> print
+    if (add && print)  graph->connect(add->outputs()[0].get(), print->inputs()[0].get());
 
     editor->editorScene()->setGraph(graph);
     editor->fitToScreen();

@@ -1,12 +1,17 @@
 #include <QBlock/NodePickerDialog.h>
+#include <QBlock/BuiltinNodes.h>
+#include <QBlock/DataType.h>
 #include <QBlock/Translator.h>
-#include <QBlock/NodeGraph.h>
+#include <QBlock/NodeIconFactory.h>
+#include <QBlock/ThemeManager.h>
 #include <QVBoxLayout>
-#include <QLabel>
-#include <QPixmap>
-#include <QPainter>
+#include <QHBoxLayout>
 #include <QPushButton>
-#include <QMouseEvent>
+#include <QLabel>
+#include <QPainter>
+#include <QListWidget>
+#include <QListWidgetItem>
+#include <QStringList>
 
 namespace QBlock {
 
@@ -14,85 +19,126 @@ NodePickerDialog::NodePickerDialog(DataType sourceType, bool isInput,
                                    std::function<std::vector<std::string>()> typeLister,
                                    QWidget* parent)
     : QDialog(parent)
+    , selectedType_()
 {
     setWindowTitle(Translator::tr("picker.title"));
-    setFixedSize(320, 420);
-    setModal(true);
+    setMinimumSize(520, 400);
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(8, 8, 8, 8);
-    layout->setSpacing(6);
 
-    auto* titleLabel = new QLabel(Translator::tr("picker.prompt"));
-    titleLabel->setStyleSheet("color: #ccc; font-size: 13px; padding: 4px;");
-    layout->addWidget(titleLabel);
+    promptLabel_ = new QLabel(Translator::tr("picker.prompt"), this);
+    layout->addWidget(promptLabel_);
 
     list_ = new QListWidget(this);
-    list_->setStyleSheet(
-        "QListWidget { background: #2a2a32; border: 1px solid #444; color: #ccc; }"
-        "QListWidget::item { padding: 6px 8px; border-bottom: 1px solid #333; }"
-        "QListWidget::item:hover { background: #3a3a48; }"
-        "QListWidget::item:selected { background: #4a4a5a; }"
-    );
-    list_->setIconSize(QSize(24, 24));
-    list_->setWordWrap(false);
-    layout->addWidget(list_);
+    list_->setIconSize(QSize(32, 32));
+    list_->setSpacing(4);
 
-    auto* cancelBtn = new QPushButton(Translator::tr("picker.cancel"));
-    cancelBtn->setStyleSheet(
-        "QPushButton { background: #444; color: #ccc; border: 1px solid #555; "
-        "border-radius: 3px; padding: 6px 16px; }"
-        "QPushButton:hover { background: #555; }"
-    );
-    layout->addWidget(cancelBtn);
-    connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+    // In Chinese mode: icon-only display in grid view
+    if (Translator::currentLanguage() == QStringLiteral("zh")) {
+        list_->setViewMode(QListView::IconMode);
+        list_->setResizeMode(QListView::Adjust);
+        list_->setMovement(QListView::Static);
+        list_->setSpacing(12);
+        list_->setGridSize(QSize(76, 76));
+    } else {
+        list_->setViewMode(QListView::ListMode);
+    }
+    layout->addWidget(list_, 1);
 
-    populateList(sourceType, isInput, std::move(typeLister));
+    // Button row with Cancel
+    auto* buttonRow = new QHBoxLayout();
+    cancelBtn_ = new QPushButton(Translator::tr("picker.cancel"), this);
+    buttonRow->addStretch(1);
+    buttonRow->addWidget(cancelBtn_);
+    layout->addLayout(buttonRow);
 
-    connect(list_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+    connect(cancelBtn_, &QPushButton::clicked, this, &QDialog::reject);
+    connect(list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
         if (item) {
             selectedType_ = item->data(Qt::UserRole).toString().toStdString();
             accept();
         }
     });
+
+    applyThemeStyle();
+    ThemeManager::onThemeChanged([this]() { applyThemeStyle(); });
+
+    populateList(sourceType, isInput, std::move(typeLister));
 }
 
-void NodePickerDialog::populateList(DataType sourceType, bool isInput,
+void NodePickerDialog::applyThemeStyle() {
+    bool isDark = (ThemeManager::instance().currentTheme() == ThemeMode::Dark);
+    QColor bg = ThemeManager::dialogBg();
+    QColor border = ThemeManager::dialogBorder();
+    QColor listBg = ThemeManager::listBg();
+    QColor itemHover = ThemeManager::listItemHover();
+    QColor itemSel = ThemeManager::listItemSelected();
+    QColor text = ThemeManager::textPrimary();
+
+    QString style = QString(
+        "QDialog { background: %1; }"
+        "QLabel { color: %2; font-size: 12pt; padding: 6px; }"
+        "QListWidget { background: %3; color: %4; border: 1px solid %5; border-radius: 4px; padding: 6px; }"
+        "QListWidget::item:selected { background: %6; color: #fff; border-radius: 4px; }"
+        "QListWidget::item:hover { background: %7; color: #fff; border-radius: 4px; }"
+        "QPushButton { background: %8; color: %9; border: 1px solid %10; padding: 6px 16px; border-radius: 4px; }"
+        "QPushButton:hover { background: %11; color: #fff; }"
+    ).arg(bg.name(), text.name(), listBg.name(), text.name(), border.name(),
+          itemSel.name(), itemHover.name(), border.name(), text.name(), border.name(),
+          itemHover.name());
+
+    setStyleSheet(style);
+}
+
+void NodePickerDialog::populateList(DataType sourceType, bool /*isInput*/,
                                     std::function<std::vector<std::string>()> typeLister) {
     if (!typeLister) return;
+    list_->clear();
 
-    auto allTypes = typeLister();
-    QColor typeColor = colorForType(sourceType);
+    std::vector<std::string> types = typeLister();
 
-    for (const auto& typeName : allTypes) {
-        // Generate a simple colored icon for each node type
-        QPixmap icon(24, 24);
-        icon.fill(Qt::transparent);
-        QPainter p(&icon);
-        p.setRenderHint(QPainter::Antialiasing);
+    // Filter: only include types that can accept sourceType as input
+    // OR (for leaf nodes / display nodes) have at least one input
+    std::vector<std::string> compatibleTypes;
+    for (const auto& typeName : types) {
+        auto probe = Builtin::createBuiltinNode(typeName);
+        if (!probe) continue;
 
-        // Draw a rounded rect icon with the data type color
-        QColor bg = typeColor.lighter(180);
-        bg.setAlpha(180);
-        p.setBrush(bg);
-        p.setPen(QPen(typeColor, 1.5));
-        p.drawRoundedRect(2, 2, 20, 20, 4, 4);
+        // A node is compatible if it has at least one input port whose type
+        // is compatible with sourceType, OR if sourceType is Generic (show all)
+        bool compatible = (sourceType == DataType::Generic);
+        if (!compatible) {
+            for (const auto& input : probe->inputs()) {
+                if (typesCompatible(sourceType, input->type())) {
+                    compatible = true;
+                    break;
+                }
+            }
+        }
+        if (compatible) {
+            compatibleTypes.push_back(typeName);
+        }
+    }
 
-        // Draw a small symbol based on first letter
-        p.setFont(QFont("Consolas", 10, QFont::Bold));
-        p.setPen(typeColor);
-        p.drawText(QRect(2, 2, 20, 20), Qt::AlignCenter, QString::fromStdString(typeName.substr(0, 1)));
-        p.end();
+    std::sort(compatibleTypes.begin(), compatibleTypes.end());
 
-        QString trKey = QStringLiteral("node.") + QString::fromStdString(typeName);
-        QString displayName = Translator::tr(trKey);
-        if (displayName == trKey) {
-            displayName = QString::fromStdString(typeName);
+    for (const auto& typeName : compatibleTypes) {
+        auto* item = new QListWidgetItem(list_);
+        item->setIcon(QIcon(QBlock::createNodeIcon(typeName)));
+
+        // In Chinese-only mode: icon only, no text, tooltip is translated name
+        if (Translator::currentLanguage() != QStringLiteral("zh")) {
+            item->setText(QString::fromStdString(typeName));
+            item->setSizeHint(QSize(180, 32));
+        } else {
+            QString trKey = QStringLiteral("node.") + QString::fromStdString(typeName);
+            QString trName = Translator::tr(trKey);
+            if (trName == trKey) trName = QString::fromStdString(typeName);
+            item->setToolTip(trName);
+            item->setSizeHint(QSize(76, 76));
         }
 
-        auto* item = new QListWidgetItem(QIcon(icon), displayName, list_);
         item->setData(Qt::UserRole, QString::fromStdString(typeName));
-        item->setToolTip(QStringLiteral("Type: ") + QString::fromStdString(typeName));
     }
 }
 

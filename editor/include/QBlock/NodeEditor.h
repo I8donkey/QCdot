@@ -66,6 +66,9 @@ public:
     /// Toggle dark/light theme.
     void toggleTheme();
 
+    void copyNodes();
+    void pasteNodes();
+
 public slots:
     void setLanguage(const QString& lang);
 

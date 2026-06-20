@@ -1,12 +1,16 @@
 #include <QBlock/NodeWidget.h>
 #include <QBlock/PortWidget.h>
+#include <QBlock/ConnectionWidget.h>
 #include <QBlock/Translator.h>
 #include <QBlock/ThemeManager.h>
+#include <QBlock/BuiltinNodes.h>
 #include <QGraphicsScene>
 #include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSceneHoverEvent>
 #include <QStyleOptionGraphicsItem>
 #include <QPainter>
 #include <QFontMetrics>
+#include <QInputDialog>
 
 namespace QBlock {
 
@@ -39,25 +43,76 @@ void NodeWidget::createPortWidgets() {
 }
 
 void NodeWidget::layout() {
-    float y = kHeaderHeight;
+    int inputCount = inputPorts_.size();
+    int outputCount = outputPorts_.size();
+    int maxCount = std::max(inputCount, outputCount);
 
-    for (auto* pw : inputPorts_) {
-        pw->setPos(0, y);
-        y += kPortHeight;
+    // Position input ports on the left side
+    for (int i = 0; i < inputCount; ++i) {
+        float y = kHeaderHeight + static_cast<float>(i) * kPortHeight;
+        inputPorts_[i]->setPos(0, y);
     }
 
-    if (!inputPorts_.isEmpty() && !outputPorts_.isEmpty())
-        y += kPadding;
-
-    for (auto* pw : outputPorts_) {
-        pw->setPos(kWidth, y);
-        y += kPortHeight;
+    // Position output ports on the right side, aligned with input ports
+    for (int i = 0; i < outputCount; ++i) {
+        float y = kHeaderHeight + static_cast<float>(i) * kPortHeight;
+        outputPorts_[i]->setPos(kWidth, y);
     }
+
+    // Suppress unused variable warning
+    (void)maxCount;
+}
+
+bool NodeWidget::isContainerNode() const {
+    const std::string& typeName = node_->typeName();
+    return typeName == "QtMainWindow" || typeName == "QtTabWidget" || 
+           typeName == "QtHBoxLayout" || typeName == "QtVBoxLayout";
+}
+
+void NodeWidget::addContainerItem() {
+    const std::string& typeName = node_->typeName();
+    
+    if (typeName == "QtMainWindow") {
+        int widgetCount = 0;
+        for (const auto& port : node_->inputs()) {
+            if (port->name().find("widget") == 0) {
+                widgetCount++;
+            }
+        }
+        std::string newPortName = "widget" + std::to_string(widgetCount + 1);
+        node_->addInput(newPortName, DataType::Generic);
+    } else if (typeName == "QtTabWidget") {
+        int tabCount = 0;
+        for (const auto& port : node_->inputs()) {
+            if (port->name().find("tab") == 0) {
+                tabCount++;
+            }
+        }
+        std::string newPortName = "tab" + std::to_string(tabCount + 1);
+        node_->addInput(newPortName, DataType::Generic);
+    } else if (typeName == "QtHBoxLayout" || typeName == "QtVBoxLayout") {
+        int itemCount = 0;
+        for (const auto& port : node_->inputs()) {
+            if (port->name().find("item") == 0) {
+                itemCount++;
+            }
+        }
+        std::string newPortName = "item" + std::to_string(itemCount + 1);
+        node_->addInput(newPortName, DataType::Generic);
+    }
+    
+    refresh();
 }
 
 QRectF NodeWidget::boundingRect() const {
     float h = kHeaderHeight + kPadding;
-    h += std::max(inputPorts_.size(), outputPorts_.size()) * kPortHeight;
+    int portCount = std::max(inputPorts_.size(), outputPorts_.size());
+    h += portCount * kPortHeight;
+    
+    if (isContainerNode()) {
+        h += kAddButtonSize + 4;
+    }
+    
     return QRectF(-kMargin, -kMargin, kWidth + kMargin * 2 + kShadowOffset,
                   h + kMargin * 2 + kShadowOffset);
 }
@@ -101,14 +156,25 @@ void NodeWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem* option
     painter->setFont(QFont("Consolas", 10, QFont::Bold));
     painter->setPen(ThemeManager::textPrimary());
     painter->drawText(header.adjusted(8, 0, -8, 0), Qt::AlignVCenter, title);
-
-    // Chinese-only mode: if language is zh, only show translated name, no English fallback
-    // Skip the small type name subtitle when in Chinese mode, since it's already the translated name
-    if (Translator::currentLanguage() != QStringLiteral("zh")) {
-        painter->setFont(QFont("Consolas", 7));
-        painter->setPen(ThemeManager::textSecondary());
-        painter->drawText(QRectF(r.x() + 8, r.y() + kHeaderHeight, r.width() - 16, 14),
-                          Qt::AlignVCenter, QString::fromStdString(node_->typeName()));
+    
+    // Draw "+" button for container nodes
+    if (isContainerNode()) {
+        float buttonY = r.height() - kAddButtonSize - 4;
+        float buttonX = (r.width() - kAddButtonSize) / 2;
+        QRectF buttonRect(buttonX, buttonY, kAddButtonSize, kAddButtonSize);
+        
+        if (hoverAddButton_) {
+            painter->setBrush(ThemeManager::accentColor());
+            painter->setPen(Qt::NoPen);
+        } else {
+            painter->setBrush(QColor(0, 0, 0, 30));
+            painter->setPen(QPen(ThemeManager::textSecondary(), 1));
+        }
+        painter->drawRoundedRect(buttonRect, 4, 4);
+        
+        painter->setFont(QFont("Consolas", 12, QFont::Bold));
+        painter->setPen(hoverAddButton_ ? Qt::white : ThemeManager::textSecondary());
+        painter->drawText(buttonRect, Qt::AlignCenter, QStringLiteral("+"));
     }
 }
 
@@ -135,6 +201,20 @@ void NodeWidget::refresh() {
 }
 
 void NodeWidget::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+    QPointF localPos = event->pos();
+    
+    if (isContainerNode()) {
+        QRectF r(0, 0, kWidth, boundingRect().height() - kMargin * 2 - kShadowOffset);
+        float buttonY = r.height() - kAddButtonSize - 4;
+        float buttonX = (r.width() - kAddButtonSize) / 2;
+        QRectF buttonRect(buttonX, buttonY, kAddButtonSize, kAddButtonSize);
+        
+        if (buttonRect.contains(localPos)) {
+            addContainerItem();
+            return;
+        }
+    }
+    
     dragging_ = true;
     dragStart_ = event->scenePos();
     setCursor(Qt::ClosedHandCursor);
@@ -154,6 +234,104 @@ void NodeWidget::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
         node_->setPosition(static_cast<float>(pos().x()), static_cast<float>(pos().y()));
         QGraphicsItem::mouseReleaseEvent(event);
     }
+}
+
+void NodeWidget::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
+    QPointF localPos = event->pos();
+    bool wasHovering = hoverAddButton_;
+    
+    if (isContainerNode()) {
+        QRectF r(0, 0, kWidth, boundingRect().height() - kMargin * 2 - kShadowOffset);
+        float buttonY = r.height() - kAddButtonSize - 4;
+        float buttonX = (r.width() - kAddButtonSize) / 2;
+        QRectF buttonRect(buttonX, buttonY, kAddButtonSize, kAddButtonSize);
+        
+        hoverAddButton_ = buttonRect.contains(localPos);
+    } else {
+        hoverAddButton_ = false;
+    }
+    
+    if (hoverAddButton_ != wasHovering) {
+        update();
+    }
+    
+    if (hoverAddButton_) {
+        setCursor(Qt::PointingHandCursor);
+    } else if (!dragging_) {
+        setCursor(Qt::OpenHandCursor);
+    }
+    
+    QGraphicsItem::hoverMoveEvent(event);
+}
+
+QVariant NodeWidget::itemChange(GraphicsItemChange change, const QVariant& value) {
+    if (change == ItemPositionHasChanged) {
+        // Update all connections attached to this node's ports
+        for (auto* pw : inputPorts_) {
+            for (auto* conn : pw->connections()) {
+                conn->updatePath();
+            }
+        }
+        for (auto* pw : outputPorts_) {
+            for (auto* conn : pw->connections()) {
+                conn->updatePath();
+            }
+        }
+    }
+    return QGraphicsItem::itemChange(change, value);
+}
+
+void NodeWidget::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
+    // Try to edit constant node values
+    if (auto* ci = dynamic_cast<Builtin::ConstantIntNode*>(node_)) {
+        bool ok = false;
+        int v = QInputDialog::getInt(
+            nullptr,
+            Translator::currentLanguage() == "zh" ? QStringLiteral("设置整数值") : QStringLiteral("Set Integer Value"),
+            Translator::currentLanguage() == "zh" ? QStringLiteral("输入整数：") : QStringLiteral("Enter integer:"),
+            static_cast<int>(ci->value()),
+            -2147483647, 2147483647, 1, &ok);
+        if (ok) ci->setValue(static_cast<int64_t>(v));
+        return;
+    }
+    if (auto* cf = dynamic_cast<Builtin::ConstantFloatNode*>(node_)) {
+        bool ok = false;
+        double v = QInputDialog::getDouble(
+            nullptr,
+            Translator::currentLanguage() == "zh" ? QStringLiteral("设置浮点数值") : QStringLiteral("Set Float Value"),
+            Translator::currentLanguage() == "zh" ? QStringLiteral("输入浮点数：") : QStringLiteral("Enter float:"),
+            cf->value(),
+            -1000000.0, 1000000.0, 6, &ok);
+        if (ok) cf->setValue(v);
+        return;
+    }
+    if (auto* cb = dynamic_cast<Builtin::ConstantBoolNode*>(node_)) {
+        QStringList items;
+        items << (Translator::currentLanguage() == "zh" ? QStringLiteral("是 / true") : QStringLiteral("Yes / true"))
+              << (Translator::currentLanguage() == "zh" ? QStringLiteral("否 / false") : QStringLiteral("No / false"));
+        bool ok = false;
+        QString item = QInputDialog::getItem(
+            nullptr,
+            Translator::currentLanguage() == "zh" ? QStringLiteral("设置布尔值") : QStringLiteral("Set Boolean Value"),
+            Translator::currentLanguage() == "zh" ? QStringLiteral("选择值：") : QStringLiteral("Choose value:"),
+            items, cb->value() ? 0 : 1, false, &ok);
+        if (ok && !item.isEmpty()) {
+            cb->setValue(items.indexOf(item) == 0);
+        }
+        return;
+    }
+    if (auto* cs = dynamic_cast<Builtin::ConstantStringNode*>(node_)) {
+        bool ok = false;
+        QString text = QInputDialog::getText(
+            nullptr,
+            Translator::currentLanguage() == "zh" ? QStringLiteral("设置字符串") : QStringLiteral("Set String Value"),
+            Translator::currentLanguage() == "zh" ? QStringLiteral("输入文本：") : QStringLiteral("Enter text:"),
+            QLineEdit::Normal,
+            QString::fromStdString(cs->value()), &ok);
+        if (ok) cs->setValue(text.toStdString());
+        return;
+    }
+    QGraphicsItem::mouseDoubleClickEvent(event);
 }
 
 } // namespace QBlock

@@ -391,8 +391,13 @@ void EditorScene::closeInlinePicker() {
 
 void EditorScene::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
-        auto selected = selectedItems();
-        for (auto* item : selected) {
+        // Collect items to delete first (to avoid iterator invalidation)
+        QList<QGraphicsItem*> itemsToDelete;
+        for (auto* item : selectedItems()) {
+            itemsToDelete.append(item);
+        }
+        
+        for (auto* item : itemsToDelete) {
             if (auto* connWidget = dynamic_cast<ConnectionWidget*>(item)) {
                 removeConnectionWidget(connWidget);
             } else if (auto* nodeWidget = dynamic_cast<NodeWidget*>(item)) {
@@ -402,6 +407,7 @@ void EditorScene::keyPressEvent(QKeyEvent* event) {
                 removeNodeWidget(nodeWidget->node());
             }
         }
+        clearSelection();
         emit graphModified();
         return;
     }

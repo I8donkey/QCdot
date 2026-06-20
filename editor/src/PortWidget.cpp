@@ -97,6 +97,31 @@ QRectF PortWidget::boundingRect() const {
 QPainterPath PortWidget::shape() const {
     QPainterPath path;
     path.addEllipse(-8, -8, 16, 16);
+    
+    // Add delete button hit area for removable input ports
+    if (isRemovable() && port_->isInput()) {
+        QFontMetrics fm(QFont("Consolas", 8));
+        QString label;
+        std::string portName = port_->name();
+        
+        if (portName.find("widget") == 0) {
+            QString baseLabel = Translator::tr("port.widget");
+            label = (baseLabel != "port.widget") ? baseLabel + QString::fromStdString(portName.substr(6)) : QString::fromStdString(portName);
+        } else if (portName.find("tab") == 0) {
+            QString baseLabel = Translator::tr("port.tab");
+            label = (baseLabel != "port.tab") ? baseLabel + QString::fromStdString(portName.substr(3)) : QString::fromStdString(portName);
+        } else if (portName.find("item") == 0) {
+            QString baseLabel = Translator::tr("port.item");
+            label = (baseLabel != "port.item") ? baseLabel + QString::fromStdString(portName.substr(4)) : QString::fromStdString(portName);
+        } else {
+            label = QString::fromStdString(portName);
+        }
+        
+        float buttonX = 12 + fm.horizontalAdvance(label);
+        float buttonY = -kDeleteButtonSize / 2 - 1;
+        path.addRect(buttonX, buttonY, kDeleteButtonSize, kDeleteButtonSize);
+    }
+    
     return path;
 }
 
@@ -205,8 +230,10 @@ void PortWidget::mousePressEvent(QGraphicsSceneMouseEvent* event) {
         QRectF buttonRect(buttonX, buttonY, kDeleteButtonSize, kDeleteButtonSize);
         
         if (buttonRect.contains(localPos)) {
-            nodeWidget_->node()->removeInput(port_->name());
+            Node* node = nodeWidget_->node();
+            node->removeInput(port_->name());
             nodeWidget_->refresh();
+            event->accept();
             return;
         }
     }

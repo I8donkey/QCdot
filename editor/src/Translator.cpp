@@ -307,12 +307,6 @@ const QHash<QString, QHash<QString, QString>>& Translator::data() {
             {QStringLiteral("port.checked"),     QStringLiteral("选中")},
             {QStringLiteral("port.color"),       QStringLiteral("颜色")},
             {QStringLiteral("port.widget1"),     QStringLiteral("控件1")},
-            {QStringLiteral("port.widget2"),     QStringLiteral("控件2")},
-            {QStringLiteral("port.widget3"),     QStringLiteral("控件3")},
-            {QStringLiteral("port.r"),           QStringLiteral("红")},
-            {QStringLiteral("port.g"),           QStringLiteral("绿")},
-            {QStringLiteral("port.b"),           QStringLiteral("蓝")},
-            {QStringLiteral("port.a"),           QStringLiteral("透明度")},
 
             // ---- Input/output-specific port labels ----
             {QStringLiteral("port.input.value"),   QStringLiteral("输入值")},

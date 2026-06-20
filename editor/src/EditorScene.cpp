@@ -401,10 +401,12 @@ void EditorScene::keyPressEvent(QKeyEvent* event) {
             if (auto* connWidget = dynamic_cast<ConnectionWidget*>(item)) {
                 removeConnectionWidget(connWidget);
             } else if (auto* nodeWidget = dynamic_cast<NodeWidget*>(item)) {
+                // First remove the node widget (which cleans up connections)
+                removeNodeWidget(nodeWidget->node());
+                // Then remove from graph (if graph owns the node)
                 if (graph_) {
                     graph_->removeNode(nodeWidget->node());
                 }
-                removeNodeWidget(nodeWidget->node());
             }
         }
         clearSelection();

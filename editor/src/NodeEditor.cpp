@@ -226,11 +226,63 @@ void NodeEditor::setupToolbar() {
     pasteAct->setShortcut(QKeySequence::Paste);
     connect(pasteAct, &QAction::triggered, this, &NodeEditor::pasteNodes);
 
+    auto* undoAct = toolbar_->addAction(Translator::tr("toolbar.undo"));
+    undoAct->setShortcut(QKeySequence::Undo);
+    connect(undoAct, &QAction::triggered, this, [this]() {
+        if (undoStack_.canUndo()) {
+            undoStack_.undo();
+            rebuildFromGraph();
+            emit graphModified();
+        }
+    });
+
+    auto* redoAct = toolbar_->addAction(Translator::tr("toolbar.redo"));
+    redoAct->setShortcut(QKeySequence::Redo);
+    connect(redoAct, &QAction::triggered, this, [this]() {
+        if (undoStack_.canRedo()) {
+            undoStack_.redo();
+            rebuildFromGraph();
+            emit graphModified();
+        }
+    });
+
+    auto* selectAllAct = toolbar_->addAction(Translator::tr("toolbar.select_all"));
+    selectAllAct->setShortcut(QKeySequence::SelectAll);
+    connect(selectAllAct, &QAction::triggered, this, [this]() {
+        scene_->selectAll();
+    });
+
+    // File operation shortcuts
+    auto* newFileAct = new QAction(this);
+    newFileAct->setShortcut(QKeySequence::New);
+    connect(newFileAct, &QAction::triggered, this, &NodeEditor::newGraph);
+    addAction(newFileAct);
+
+    auto* openFileAct = new QAction(this);
+    openFileAct->setShortcut(QKeySequence::Open);
+    connect(openFileAct, &QAction::triggered, this, [this]() {
+        QString path = QFileDialog::getOpenFileName(
+            this, Translator::tr("dialog.open_title"), {},
+            Translator::tr("dialog.filter"));
+        if (!path.isEmpty()) loadFromFile(path);
+    });
+    addAction(openFileAct);
+
+    auto* saveFileAct = new QAction(this);
+    saveFileAct->setShortcut(QKeySequence::Save);
+    connect(saveFileAct, &QAction::triggered, this, [this]() {
+        QString path = QFileDialog::getSaveFileName(
+            this, Translator::tr("dialog.save_title"), {},
+            Translator::tr("dialog.filter"));
+        if (!path.isEmpty()) saveToFile(path);
+    });
+    addAction(saveFileAct);
+
     // Settings menu on the right side
     setupSettingsMenu(toolbar_);
 
     // Refresh toolbar labels when language changes
-    Translator::onLanguageChanged([this, newAct, loadAct, saveAct, execAct, execSigAct, fitAct, copyAct, pasteAct]() {
+    Translator::onLanguageChanged([this, newAct, loadAct, saveAct, execAct, execSigAct, fitAct, copyAct, pasteAct, undoAct, redoAct, selectAllAct]() {
         newAct->setText(Translator::tr("toolbar.new"));
         loadAct->setText(Translator::tr("toolbar.open"));
         saveAct->setText(Translator::tr("toolbar.save"));
@@ -239,6 +291,9 @@ void NodeEditor::setupToolbar() {
         fitAct->setText(Translator::tr("toolbar.fit_view"));
         copyAct->setText(Translator::tr("toolbar.copy"));
         pasteAct->setText(Translator::tr("toolbar.paste"));
+        undoAct->setText(Translator::tr("toolbar.undo"));
+        redoAct->setText(Translator::tr("toolbar.redo"));
+        selectAllAct->setText(Translator::tr("toolbar.select_all"));
         for (auto* item : scene_->items()) {
             if (auto* nw = dynamic_cast<NodeWidget*>(item)) {
                 nw->update();

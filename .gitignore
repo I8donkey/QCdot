@@ -15,6 +15,7 @@ Makefile
 *.log
 
 # IDE
+.trae/
 .vs/
 .vscode/
 .idea/

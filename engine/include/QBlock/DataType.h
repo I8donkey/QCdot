@@ -18,7 +18,8 @@ enum class DataType : uint8_t {
     Binary   = 5,   ///< byte array / binary blob
     FilePath = 6,   ///< file system path
     Generic  = 7,   ///< template / any-type (limited use)
-    ExecFlow = 8    ///< execution flow (signal mode only)
+    ExecFlow = 8,   ///< execution flow (signal mode only)
+    Pointer  = 9    ///< raw pointer (for Qt object passing)
 };
 
 /// Returns the display color for a given data type.
@@ -33,6 +34,7 @@ inline QColor colorForType(DataType type) {
         case DataType::FilePath: return QColor(255, 160, 122);   // Light Salmon
         case DataType::Generic:  return QColor(169, 169, 169);   // Dark Gray
         case DataType::ExecFlow: return QColor(255, 255, 255);   // White
+        case DataType::Pointer:  return QColor(100, 100, 100);   // Dark Gray
     }
     return QColor(128, 128, 128);
 }
@@ -49,6 +51,7 @@ inline QString typeName(DataType type) {
         case DataType::FilePath: return QStringLiteral("FilePath");
         case DataType::Generic:  return QStringLiteral("Generic");
         case DataType::ExecFlow: return QStringLiteral("Exec");
+        case DataType::Pointer:  return QStringLiteral("Pointer");
     }
     return QStringLiteral("Unknown");
 }
@@ -57,6 +60,8 @@ inline QString typeName(DataType type) {
 /// Numeric types (Integer, Float, Boolean) are mutually compatible.
 inline bool typesCompatible(DataType a, DataType b) {
     if (a == DataType::Generic || b == DataType::Generic)
+        return true;
+    if (a == DataType::Pointer || b == DataType::Pointer)
         return true;
     if (a == b)
         return true;

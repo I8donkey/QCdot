@@ -1,160 +1,219 @@
-# QBlock - 使用指南
+# QCdot 使用指南
 
-## 版本
+**版本**：0.1.0
 
-当前版本：1.0.0
+[English Version](USAGE.md)
 
-## 基本概念
+## 概述
 
-### 节点
+QCdot 是一个可视化编程引擎，允许您创建基于节点的应用程序。它包含两个主要组件：
 
-节点是 QBlock 中的基本构建块。每个节点代表一个函数、变量或 UI 组件。节点具有：
-- **输入端口**：节点的左侧（接收数据）
-- **输出端口**：节点的右侧（生成数据）
-- **标题**：节点类型的名称
+1. **引擎**：用于节点图操作和执行的核心库
+2. **编辑器**：用于构建节点式用户界面的可视化组件
 
-### 连接
+## 快速开始
 
-连接将输出端口链接到输入端口，创建数据流。连接按数据类型进行颜色编码。
+### 基本设置
 
-### 数据类型
+```cpp
+#include <QBlock/NodeEditor.h>
+#include <QBlock/BuiltinNodes.h>
+#include <QApplication>
 
-- **整数**：整数（1、2、3、...）
-- **浮点数**：小数（1.5、3.14、...）
-- **布尔值**：真/假值
-- **字符串**：文本值
-- **通用**：任何数据类型
+int main(int argc, char* argv[]) {
+    QApplication app(argc, argv);
+    
+    // 创建节点编辑器
+    QBlock::NodeEditor editor;
+    
+    // 添加节点
+    auto* intNode = editor.addNode("ConstantInt", 100, 100);
+    auto* addNode = editor.addNode("Add", 300, 100);
+    
+    // 连接节点
+    editor.graph()->connect(
+        intNode->outputs()[0].get(),
+        addNode->inputs()[0].get()
+    );
+    
+    editor.show();
+    return app.exec();
+}
+```
 
-## 节点面板
+## 节点类型
 
-左侧面板显示所有可用节点，按类别组织：
+### 数学节点
+- `Add` - 整数/浮点数加法
+- `Subtract` - 整数/浮点数减法
+- `Multiply` - 整数/浮点数乘法
+- `Divide` - 整数/浮点数除法
+- `Modulo` - 整数取模
+- `Power` - 幂运算
+- `Sqrt` - 平方根
 
-1. **输入**：常量和变量节点
-2. **输出**：打印和显示节点
-3. **容器**：窗口和布局节点
-4. **控件**：UI 组件节点
-5. **控件方法**：控件操作节点
-6. **数学**：算术运算
-7. **逻辑**：比较和布尔运算
-8. **字符串**：字符串操作
-9. **转换**：类型转换
-10. **文件**：文件操作
-11. **工具**：工具（延时、随机数等）
+### 逻辑节点
+- `Equal` - 相等比较
+- `GreaterThan` - 大于比较
+- `LessThan` - 小于比较
+- `And` - 逻辑与
+- `Or` - 逻辑或
+- `Not` - 逻辑非
+- `IfElse` - 条件分支
 
-### 创建节点
+### 数据节点
+- `ConstantInt` - 整数常量（使用 `setValue(int64_t)`）
+- `ConstantFloat` - 浮点数常量（使用 `setValue(double)`）
+- `ConstantBool` - 布尔常量（使用 `setValue(bool)`）
+- `ConstantString` - 字符串常量（使用 `setValue(const std::string&)`）
+- `Variable` - 变量存储
+- `Counter` - 计数器
 
-1. **拖放**：将节点从面板拖到画布上
-2. **内联选择器**：将连接线拖到空白处并选择节点类型
-3. **双击**：在空白画布上双击打开节点选择器
+### 转换节点
+- `IntToFloat` - 整数转浮点数
+- `FloatToInt` - 浮点数转整数
+- `ToString` - 转字符串
 
-### 连接节点
+### 字符串节点
+- `StringConcat` - 字符串拼接
+- `StringLength` - 获取字符串长度
+- `StringSubstring` - 提取子串
 
-1. 单击输出端口（右侧）
-2. 拖动到输入端口（左侧）
-3. 释放以创建连接
+### 位运算节点
+- `BinaryAnd` - 按位与
+- `BinaryOr` - 按位或
+- `BinaryXor` - 按位异或
+- `ShiftLeft` - 左移
+- `ShiftRight` - 右移
 
-### 删除节点
+### 文件节点
+- `FileReadText` - 读取文本文件
+- `FileWriteText` - 写入文本文件
+- `FileReadBinary` - 读取二进制文件
 
-1. 选择要删除的节点
-2. 按 `Delete` 键或点击删除按钮
+### 工具节点
+- `RandomInt` - 生成随机整数
+- `Sleep` - 暂停执行
 
-### 编辑节点值
+### Qt UI 节点
+- `Color` - RGBA 颜色值
+- `QtMainWindow` - 顶级窗口容器
+- `QtButton` - 可点击按钮
+- `QtLabel` - 文本显示标签
+- `QtLineEdit` - 单行文本输入
+- `QtTabWidget` - 标签页容器
+- `QtLayout` - 布局容器
+- `QtSlider` - 数值滑块
+- `QtCheckBox` - 复选框
+- `QtComboBox` - 下拉选择
+- `QtSpinBox` - 数值输入框
+- `QtProgressBar` - 进度指示器
 
-双击常量节点以编辑其值。
+## 设置常量值
 
-## 执行模式
+```cpp
+// 整数常量
+auto* intNode = editor.addNode("ConstantInt", 80, 60);
+if (auto* constNode = dynamic_cast<QBlock::Builtin::ConstantIntNode*>(intNode))
+    constNode->setValue(42);
 
-### 数据流模式（默认）
+// 浮点数常量
+auto* floatNode = editor.addNode("ConstantFloat", 80, 160);
+if (auto* constNode = dynamic_cast<QBlock::Builtin::ConstantFloatNode*>(floatNode))
+    constNode->setValue(3.14159);
 
-当所有输入都有有效值时，节点执行。执行根据数据可用性自动流动。
+// 布尔常量
+auto* boolNode = editor.addNode("ConstantBool", 80, 260);
+if (auto* constNode = dynamic_cast<QBlock::Builtin::ConstantBoolNode*>(boolNode))
+    constNode->setValue(true);
 
-### 信号模式
+// 字符串常量
+auto* strNode = editor.addNode("ConstantString", 80, 360);
+if (auto* constNode = dynamic_cast<QBlock::Builtin::ConstantStringNode*>(strNode))
+    constNode->setValue("Hello World");
+```
 
-节点从左到右执行，沿着显式信号连接。适用于命令式逻辑。
+## 主题管理
 
-## 文件操作
+```cpp
+#include <QBlock/ThemeManager.h>
 
-### 保存
+// 获取当前主题
+auto theme = QBlock::ThemeManager::instance().currentTheme();
 
-1. `Ctrl+S` 或 文件 → 保存
-2. 选择位置和文件名
-3. 图形保存为 `.qcd` 文件
+// 切换到深色模式
+QBlock::ThemeManager::instance().setTheme(QBlock::ThemeMode::Dark);
 
-### 打开
+// 切换到浅色模式
+QBlock::ThemeManager::instance().setTheme(QBlock::ThemeMode::Light);
 
-1. `Ctrl+O` 或 文件 → 打开
-2. 选择 `.qcd` 文件
-3. 图形加载到编辑器中
+// 监听主题变化
+QBlock::ThemeManager::onThemeChanged([]() {
+    // 更新您的 UI
+});
+```
 
-### 导出为 C++
+## 语言管理
 
-1. 文件 → 导出为 C++
-2. 选择生成源代码的位置
+```cpp
+#include <QBlock/Translator.h>
 
-## 主题和语言
+// 设置语言为中文
+QBlock::Translator::setLanguage("zh");
 
-### 切换主题
+// 设置语言为英文
+QBlock::Translator::setLanguage("en");
 
-使用工具栏按钮或菜单选项在深色和浅色主题之间切换。
+// 获取翻译字符串
+QString title = QBlock::Translator::tr("app.title");
+```
 
-### 切换语言
+## 保存和加载
 
-使用语言菜单在英语和中文之间切换。
+```cpp
+// 保存图到文件
+editor.saveGraph("my_graph.qcd");
 
-## 高级功能
+// 从文件加载图
+editor.loadGraph("my_graph.qcd");
+```
 
-### 变量节点
+## 自定义节点
 
-使用变量节点在图形中存储和检索值：
+创建自定义节点，继承自 `QBlock::Node`：
 
-1. 创建一个变量节点
-2. 连接以读取或写入值
-3. 变量在执行之间保持不变
+```cpp
+class MyCustomNode : public QBlock::Node {
+public:
+    MyCustomNode() {
+        addInput("input", QBlock::DataType::Integer);
+        addOutput("output", QBlock::DataType::Integer);
+    }
+    
+    std::string typeName() const override { return "MyCustomNode"; }
+    std::string nodeTitle() const override { return "My Custom Node"; }
+    
+    void process(const QBlock::VariantMap& in, QBlock::VariantMap& out) override {
+        int value = in.at("input").toInt();
+        out["output"] = QBlock::Variant(value * 2);
+    }
+};
+```
 
-### 条件执行
+使用节点工厂注册自定义节点。
 
-使用 IfElse 节点根据条件分支执行：
+## 编辑器功能
 
-1. 添加一个 IfElse 节点
-2. 将布尔条件连接到 "condition" 输入
-3. 将节点连接到 "true" 和 "false" 分支
+### 拖放操作
+- 从素材库拖放节点到画布
+- 在端口之间拖放连接线
+- 点击并拖动节点重新定位
 
-### 容器节点
+### 快捷键
+- 删除节点：选中节点后按 Delete
+- 复制节点：Ctrl+C
+- 粘贴节点：Ctrl+V
 
-使用容器节点创建结构化 UI 布局：
-
-1. 添加主窗口或标签页控件容器
-2. 添加布局节点
-3. 添加控件并将其连接到布局
-4. 使用方法节点操作容器
-
-## 故障排除
-
-### 无法创建连接
-
-- 检查数据类型是否兼容
-- 检查是否正在连接到输入（而不是输出到输出）
-
-### 节点不执行
-
-- 确保所有必需的输入都已连接
-- 检查信号模式中是否有循环依赖
-
-### 应用程序崩溃
-
-- 经常保存您的工作
-- 检查控制台输出中的错误消息
-
-## API 参考
-
-### 节点类型
-
-所有节点类型都在 `nodes/include/QBlock/BuiltinNodes.h` 中定义。
-
-### 引擎 API
-
-核心执行引擎位于 `engine/include/QBlock/`。
-
-### 编辑器 API
-
-编辑器组件位于 `editor/include/QBlock/`。
+### 上下文菜单
+- 在画布上右键显示节点选择器
+- 双击常量节点编辑值

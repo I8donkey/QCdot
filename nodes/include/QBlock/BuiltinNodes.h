@@ -3,25 +3,19 @@
 
 #include <QBlock/Node.h>
 #include <QBlock/NodeGraph.h>
-#include <QMainWindow>
-#include <QWidget>
-#include <QLabel>
-#include <QPushButton>
-#include <QLineEdit>
-#include <QTabWidget>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QSlider>
-#include <QCheckBox>
-#include <QComboBox>
-#include <QSpinBox>
-#include <QProgressBar>
 #include <cmath>
 #include <vector>
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <iostream>
 #include <cstdint>
+#include <queue>
+#include <stack>
+#include <deque>
+#include <set>
+#include <unordered_set>
+#include <algorithm>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -452,70 +446,32 @@ public:
         addInput("widget3", DataType::Generic);
         addOutput("window", DataType::Generic);
     }
-    ~QtMainWindowNode() {
-        if (window_) {
-            window_->deleteLater();
-        }
-    }
     std::string typeName() const override { return "QtMainWindow"; }
     std::string nodeTitle() const override { return "Main Window"; }
 
     void process(const VariantMap& in, VariantMap& out) override {
-        std::string title = "Qt Window";
-        int width = 800;
-        int height = 600;
-        std::string style;
+        title_ = "Qt Window";
+        width_ = 800;
+        height_ = 600;
+        style_.clear();
 
         auto it = in.find("title");
-        if (it != in.end() && it->second.isValid()) title = it->second.toString().toStdString();
+        if (it != in.end() && it->second.isValid()) title_ = it->second.toString().toStdString();
         it = in.find("width");
-        if (it != in.end() && it->second.isValid()) width = static_cast<int>(it->second.toInt());
+        if (it != in.end() && it->second.isValid()) width_ = static_cast<int>(it->second.toInt());
         it = in.find("height");
-        if (it != in.end() && it->second.isValid()) height = static_cast<int>(it->second.toInt());
+        if (it != in.end() && it->second.isValid()) height_ = static_cast<int>(it->second.toInt());
         it = in.find("style");
-        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
+        if (it != in.end() && it->second.isValid()) style_ = it->second.toString().toStdString();
 
-        // Create or update window
-        if (!window_) {
-            window_ = new QMainWindow();
-        }
-        window_->setWindowTitle(QString::fromStdString(title));
-        window_->resize(width, height);
-        if (!style.empty()) {
-            window_->setStyleSheet(QString::fromStdString(style));
-        }
-
-        // Collect child widgets from all widgetN inputs
-        QWidget* centralWidget = new QWidget(window_);
-        QVBoxLayout* layout = new QVBoxLayout(centralWidget);
-        layout->setSpacing(8);
-        layout->setContentsMargins(12, 12, 12, 12);
-
-        for (const auto& port : inputs()) {
-            const std::string& name = port->name();
-            if (name.find("widget") == 0) {
-                auto wit = in.find(name);
-                if (wit != in.end() && wit->second.isValid() && wit->second.type() == DataType::Pointer) {
-                    QWidget* child = static_cast<QWidget*>(wit->second.toPointer());
-                    if (child) {
-                        // Reparent to our central widget
-                        child->setParent(centralWidget);
-                        layout->addWidget(child);
-                    }
-                }
-            }
-        }
-
-        window_->setCentralWidget(centralWidget);
-        window_->show();
-        window_->raise();
-        window_->activateWindow();
-
-        out["window"] = Variant(static_cast<void*>(window_));
+        out["window"] = Variant(title_);
     }
 
 private:
-    QMainWindow* window_ = nullptr;
+    std::string title_;
+    int width_ = 800;
+    int height_ = 600;
+    std::string style_;
 };
 
 /// Qt Button node - clickable button widget
@@ -527,11 +483,6 @@ public:
         addInput("enabled", DataType::Boolean);
         addOutput("clicked", DataType::Boolean);
         addOutput("widget", DataType::Generic);
-    }
-    ~QtButtonNode() {
-        if (button_) {
-            button_->deleteLater();
-        }
     }
     std::string typeName() const override { return "QtButton"; }
     std::string nodeTitle() const override { return "Button"; }
@@ -548,21 +499,9 @@ public:
         it = in.find("enabled");
         if (it != in.end() && it->second.isValid()) enabled = it->second.toBool();
 
-        if (!button_) {
-            button_ = new QPushButton();
-        }
-        button_->setText(QString::fromStdString(text));
-        button_->setEnabled(enabled);
-        if (!style.empty()) {
-            button_->setStyleSheet(QString::fromStdString(style));
-        }
-
         out["clicked"] = Variant(false);
-        out["widget"] = Variant(static_cast<void*>(button_));
+        out["widget"] = Variant(text);
     }
-
-private:
-    QPushButton* button_ = nullptr;
 };
 
 /// Qt Label node - text display widget
@@ -572,11 +511,6 @@ public:
         addInput("text", DataType::String);
         addInput("style", DataType::String);
         addOutput("widget", DataType::Generic);
-    }
-    ~QtLabelNode() {
-        if (label_) {
-            label_->deleteLater();
-        }
     }
     std::string typeName() const override { return "QtLabel"; }
     std::string nodeTitle() const override { return "Label"; }
@@ -590,19 +524,8 @@ public:
         it = in.find("style");
         if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
 
-        if (!label_) {
-            label_ = new QLabel();
-        }
-        label_->setText(QString::fromStdString(text));
-        if (!style.empty()) {
-            label_->setStyleSheet(QString::fromStdString(style));
-        }
-
-        out["widget"] = Variant(static_cast<void*>(label_));
+        out["widget"] = Variant(text);
     }
-
-private:
-    QLabel* label_ = nullptr;
 };
 
 /// Qt LineEdit node - text input widget
@@ -614,11 +537,6 @@ public:
         addInput("enabled", DataType::Boolean);
         addOutput("text", DataType::String);
         addOutput("widget", DataType::Generic);
-    }
-    ~QtLineEditNode() {
-        if (lineEdit_) {
-            lineEdit_->deleteLater();
-        }
     }
     std::string typeName() const override { return "QtLineEdit"; }
     std::string nodeTitle() const override { return "Line Edit"; }
@@ -635,21 +553,9 @@ public:
         it = in.find("enabled");
         if (it != in.end() && it->second.isValid()) enabled = it->second.toBool();
 
-        if (!lineEdit_) {
-            lineEdit_ = new QLineEdit();
-        }
-        lineEdit_->setPlaceholderText(QString::fromStdString(placeholder));
-        lineEdit_->setEnabled(enabled);
-        if (!style.empty()) {
-            lineEdit_->setStyleSheet(QString::fromStdString(style));
-        }
-
-        out["text"] = Variant(lineEdit_->text().toStdString());
-        out["widget"] = Variant(static_cast<void*>(lineEdit_));
+        out["text"] = Variant(std::string());
+        out["widget"] = Variant(placeholder);
     }
-
-private:
-    QLineEdit* lineEdit_ = nullptr;
 };
 
 /// Qt TabWidget node - tabbed container
@@ -663,49 +569,14 @@ public:
         addOutput("currentTab", DataType::Integer);
         addOutput("widget", DataType::Generic);
     }
-    ~QtTabWidgetNode() {
-        if (tabWidget_) {
-            tabWidget_->deleteLater();
-        }
-    }
     std::string typeName() const override { return "QtTabWidget"; }
     std::string nodeTitle() const override { return "Tab Widget"; }
 
     void process(const VariantMap& in, VariantMap& out) override {
-        std::string style;
-        auto it = in.find("style");
-        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
-
-        if (!tabWidget_) {
-            tabWidget_ = new QTabWidget();
-        }
-        if (!style.empty()) {
-            tabWidget_->setStyleSheet(QString::fromStdString(style));
-        }
-
-        // Clear existing tabs and repopulate
-        while (tabWidget_->count() > 0) {
-            tabWidget_->removeTab(0);
-        }
-        for (const auto& port : inputs()) {
-            const std::string& name = port->name();
-            if (name.find("tab") == 0) {
-                auto tit = in.find(name);
-                if (tit != in.end() && tit->second.isValid() && tit->second.type() == DataType::Pointer) {
-                    QWidget* child = static_cast<QWidget*>(tit->second.toPointer());
-                    if (child) {
-                        tabWidget_->addTab(child, QString::fromStdString(name));
-                    }
-                }
-            }
-        }
-
-        out["currentTab"] = Variant(static_cast<int64_t>(tabWidget_->currentIndex()));
-        out["widget"] = Variant(static_cast<void*>(tabWidget_));
+        (void)in; // Suppress unused parameter warning
+        out["currentTab"] = Variant(static_cast<int64_t>(0));
+        out["widget"] = Variant(std::string("TabWidget"));
     }
-
-private:
-    QTabWidget* tabWidget_ = nullptr;
 };
 
 /// Qt Layout node - vertical/horizontal layout container
@@ -718,11 +589,6 @@ public:
         addInput("direction", DataType::String);
         addOutput("layout", DataType::Generic);
     }
-    ~QtLayoutNode() {
-        if (container_) {
-            container_->deleteLater();
-        }
-    }
     std::string typeName() const override { return "QtLayout"; }
     std::string nodeTitle() const override { return "Layout"; }
 
@@ -730,45 +596,8 @@ public:
         std::string dir = "vertical";
         auto it = in.find("direction");
         if (it != in.end() && it->second.isValid()) dir = it->second.toString().toStdString();
-
-        if (!container_) {
-            container_ = new QWidget();
-        }
-
-        // Clear old layout
-        QLayout* oldLayout = container_->layout();
-        if (oldLayout) {
-            while (QLayoutItem* item = oldLayout->takeAt(0)) {
-                delete item;
-            }
-            delete oldLayout;
-        }
-
-        QBoxLayout* layout = (dir == "horizontal")
-            ? static_cast<QBoxLayout*>(new QHBoxLayout(container_))
-            : static_cast<QBoxLayout*>(new QVBoxLayout(container_));
-        layout->setSpacing(8);
-        layout->setContentsMargins(8, 8, 8, 8);
-
-        for (const auto& port : inputs()) {
-            const std::string& name = port->name();
-            if (name.find("item") == 0) {
-                auto iit = in.find(name);
-                if (iit != in.end() && iit->second.isValid() && iit->second.type() == DataType::Pointer) {
-                    QWidget* child = static_cast<QWidget*>(iit->second.toPointer());
-                    if (child) {
-                        child->setParent(container_);
-                        layout->addWidget(child);
-                    }
-                }
-            }
-        }
-
-        out["layout"] = Variant(static_cast<void*>(container_));
+        out["layout"] = Variant(dir);
     }
-
-private:
-    QWidget* container_ = nullptr;
 };
 
 /// Qt Slider node - value slider widget
@@ -782,17 +611,11 @@ public:
         addOutput("value", DataType::Integer);
         addOutput("widget", DataType::Generic);
     }
-    ~QtSliderNode() {
-        if (slider_) {
-            slider_->deleteLater();
-        }
-    }
     std::string typeName() const override { return "QtSlider"; }
     std::string nodeTitle() const override { return "Slider"; }
 
     void process(const VariantMap& in, VariantMap& out) override {
         int64_t minVal = 0, maxVal = 100, val = 50;
-        std::string style;
 
         auto it = in.find("min");
         if (it != in.end() && it->second.isValid()) minVal = it->second.toInt();
@@ -800,26 +623,12 @@ public:
         if (it != in.end() && it->second.isValid()) maxVal = it->second.toInt();
         it = in.find("value");
         if (it != in.end() && it->second.isValid()) val = it->second.toInt();
-        it = in.find("style");
-        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
 
+        // Clamp value
         val = std::max(minVal, std::min(maxVal, val));
-
-        if (!slider_) {
-            slider_ = new QSlider(Qt::Horizontal);
-        }
-        slider_->setRange(static_cast<int>(minVal), static_cast<int>(maxVal));
-        slider_->setValue(static_cast<int>(val));
-        if (!style.empty()) {
-            slider_->setStyleSheet(QString::fromStdString(style));
-        }
-
         out["value"] = Variant(val);
-        out["widget"] = Variant(static_cast<void*>(slider_));
+        out["widget"] = Variant(std::string("Slider"));
     }
-
-private:
-    QSlider* slider_ = nullptr;
 };
 
 /// Qt CheckBox node - checkbox widget
@@ -832,41 +641,21 @@ public:
         addOutput("checked", DataType::Boolean);
         addOutput("widget", DataType::Generic);
     }
-    ~QtCheckBoxNode() {
-        if (checkBox_) {
-            checkBox_->deleteLater();
-        }
-    }
     std::string typeName() const override { return "QtCheckBox"; }
     std::string nodeTitle() const override { return "Check Box"; }
 
     void process(const VariantMap& in, VariantMap& out) override {
         std::string text = "CheckBox";
         bool checked = false;
-        std::string style;
 
         auto it = in.find("text");
         if (it != in.end() && it->second.isValid()) text = it->second.toString().toStdString();
         it = in.find("checked");
         if (it != in.end() && it->second.isValid()) checked = it->second.toBool();
-        it = in.find("style");
-        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
 
-        if (!checkBox_) {
-            checkBox_ = new QCheckBox();
-        }
-        checkBox_->setText(QString::fromStdString(text));
-        checkBox_->setChecked(checked);
-        if (!style.empty()) {
-            checkBox_->setStyleSheet(QString::fromStdString(style));
-        }
-
-        out["checked"] = Variant(checkBox_->isChecked());
-        out["widget"] = Variant(static_cast<void*>(checkBox_));
+        out["checked"] = Variant(checked);
+        out["widget"] = Variant(text);
     }
-
-private:
-    QCheckBox* checkBox_ = nullptr;
 };
 
 /// Qt ComboBox node - dropdown selection widget
@@ -879,44 +668,19 @@ public:
         addOutput("currentIndex", DataType::Integer);
         addOutput("widget", DataType::Generic);
     }
-    ~QtComboBoxNode() {
-        if (comboBox_) {
-            comboBox_->deleteLater();
-        }
-    }
     std::string typeName() const override { return "QtComboBox"; }
     std::string nodeTitle() const override { return "Combo Box"; }
 
     void process(const VariantMap& in, VariantMap& out) override {
         std::string items = "Item1;Item2;Item3";
-        std::string style;
 
         auto it = in.find("items");
         if (it != in.end() && it->second.isValid()) items = it->second.toString().toStdString();
-        it = in.find("style");
-        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
 
-        if (!comboBox_) {
-            comboBox_ = new QComboBox();
-        }
-        comboBox_->clear();
-        QStringList itemList = QString::fromStdString(items).split(';');
-        for (const QString& item : itemList) {
-            if (!item.trimmed().isEmpty()) {
-                comboBox_->addItem(item.trimmed());
-            }
-        }
-        if (!style.empty()) {
-            comboBox_->setStyleSheet(QString::fromStdString(style));
-        }
-
-        out["currentText"] = Variant(comboBox_->currentText().toStdString());
-        out["currentIndex"] = Variant(static_cast<int64_t>(comboBox_->currentIndex()));
-        out["widget"] = Variant(static_cast<void*>(comboBox_));
+        out["currentText"] = Variant(std::string("Item1"));
+        out["currentIndex"] = Variant(static_cast<int64_t>(0));
+        out["widget"] = Variant(items);
     }
-
-private:
-    QComboBox* comboBox_ = nullptr;
 };
 
 /// Qt SpinBox node - number input with arrows
@@ -930,17 +694,11 @@ public:
         addOutput("value", DataType::Integer);
         addOutput("widget", DataType::Generic);
     }
-    ~QtSpinBoxNode() {
-        if (spinBox_) {
-            spinBox_->deleteLater();
-        }
-    }
     std::string typeName() const override { return "QtSpinBox"; }
     std::string nodeTitle() const override { return "Spin Box"; }
 
     void process(const VariantMap& in, VariantMap& out) override {
         int64_t minVal = 0, maxVal = 100, val = 0;
-        std::string style;
 
         auto it = in.find("min");
         if (it != in.end() && it->second.isValid()) minVal = it->second.toInt();
@@ -948,26 +706,11 @@ public:
         if (it != in.end() && it->second.isValid()) maxVal = it->second.toInt();
         it = in.find("value");
         if (it != in.end() && it->second.isValid()) val = it->second.toInt();
-        it = in.find("style");
-        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
 
         val = std::max(minVal, std::min(maxVal, val));
-
-        if (!spinBox_) {
-            spinBox_ = new QSpinBox();
-        }
-        spinBox_->setRange(static_cast<int>(minVal), static_cast<int>(maxVal));
-        spinBox_->setValue(static_cast<int>(val));
-        if (!style.empty()) {
-            spinBox_->setStyleSheet(QString::fromStdString(style));
-        }
-
         out["value"] = Variant(val);
-        out["widget"] = Variant(static_cast<void*>(spinBox_));
+        out["widget"] = Variant(std::string("SpinBox"));
     }
-
-private:
-    QSpinBox* spinBox_ = nullptr;
 };
 
 /// Qt ProgressBar node - progress indicator
@@ -979,676 +722,19 @@ public:
         addInput("style", DataType::String);
         addOutput("widget", DataType::Generic);
     }
-    ~QtProgressBarNode() {
-        if (progressBar_) {
-            progressBar_->deleteLater();
-        }
-    }
     std::string typeName() const override { return "QtProgressBar"; }
     std::string nodeTitle() const override { return "Progress Bar"; }
 
     void process(const VariantMap& in, VariantMap& out) override {
         int64_t val = 0, maxVal = 100;
-        std::string style;
 
         auto it = in.find("value");
         if (it != in.end() && it->second.isValid()) val = it->second.toInt();
         it = in.find("max");
         if (it != in.end() && it->second.isValid()) maxVal = it->second.toInt();
-        it = in.find("style");
-        if (it != in.end() && it->second.isValid()) style = it->second.toString().toStdString();
 
         val = std::max(int64_t(0), std::min(maxVal, val));
-
-        if (!progressBar_) {
-            progressBar_ = new QProgressBar();
-        }
-        progressBar_->setRange(0, static_cast<int>(maxVal));
-        progressBar_->setValue(static_cast<int>(val));
-        if (!style.empty()) {
-            progressBar_->setStyleSheet(QString::fromStdString(style));
-        }
-
-        out["widget"] = Variant(static_cast<void*>(progressBar_));
-    }
-
-private:
-    QProgressBar* progressBar_ = nullptr;
-};
-
-// ============================================================================
-// Qt Widget Function Nodes (方法调用节点)
-// ============================================================================
-
-/// WidgetResize - 调整控件大小
-class WidgetResizeNode final : public Node {
-public:
-    WidgetResizeNode() {
-        addInput("widget", DataType::Generic);
-        addInput("width", DataType::Integer);
-        addInput("height", DataType::Integer);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetResize"; }
-    std::string nodeTitle() const override { return "Resize"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                int width = static_cast<int>(in.at("width").toInt());
-                int height = static_cast<int>(in.at("height").toInt());
-                w->resize(width, height);
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetMove - 移动控件位置
-class WidgetMoveNode final : public Node {
-public:
-    WidgetMoveNode() {
-        addInput("widget", DataType::Generic);
-        addInput("x", DataType::Integer);
-        addInput("y", DataType::Integer);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetMove"; }
-    std::string nodeTitle() const override { return "Move"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                int x = static_cast<int>(in.at("x").toInt());
-                int y = static_cast<int>(in.at("y").toInt());
-                w->move(x, y);
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetShow - 显示控件
-class WidgetShowNode final : public Node {
-public:
-    WidgetShowNode() {
-        addInput("widget", DataType::Generic);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetShow"; }
-    std::string nodeTitle() const override { return "Show"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                w->show();
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetHide - 隐藏控件
-class WidgetHideNode final : public Node {
-public:
-    WidgetHideNode() {
-        addInput("widget", DataType::Generic);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetHide"; }
-    std::string nodeTitle() const override { return "Hide"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                w->hide();
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetSetEnabled - 设置启用状态
-class WidgetSetEnabledNode final : public Node {
-public:
-    WidgetSetEnabledNode() {
-        addInput("widget", DataType::Generic);
-        addInput("enabled", DataType::Boolean);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetSetEnabled"; }
-    std::string nodeTitle() const override { return "Set Enabled"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                w->setEnabled(in.at("enabled").toBool());
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetSetVisible - 设置可见性
-class WidgetSetVisibleNode final : public Node {
-public:
-    WidgetSetVisibleNode() {
-        addInput("widget", DataType::Generic);
-        addInput("visible", DataType::Boolean);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetSetVisible"; }
-    std::string nodeTitle() const override { return "Set Visible"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                w->setVisible(in.at("visible").toBool());
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetSetStyleSheet - 设置样式表
-class WidgetSetStyleSheetNode final : public Node {
-public:
-    WidgetSetStyleSheetNode() {
-        addInput("widget", DataType::Generic);
-        addInput("style", DataType::String);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetSetStyleSheet"; }
-    std::string nodeTitle() const override { return "Set Style"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                w->setStyleSheet(in.at("style").toString());
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetSetToolTip - 设置提示文本
-class WidgetSetToolTipNode final : public Node {
-public:
-    WidgetSetToolTipNode() {
-        addInput("widget", DataType::Generic);
-        addInput("tooltip", DataType::String);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetSetToolTip"; }
-    std::string nodeTitle() const override { return "Set Tooltip"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                w->setToolTip(in.at("tooltip").toString());
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetSetFixedSize - 设置固定大小
-class WidgetSetFixedSizeNode final : public Node {
-public:
-    WidgetSetFixedSizeNode() {
-        addInput("widget", DataType::Generic);
-        addInput("width", DataType::Integer);
-        addInput("height", DataType::Integer);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetSetFixedSize"; }
-    std::string nodeTitle() const override { return "Set Fixed Size"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                int width = static_cast<int>(in.at("width").toInt());
-                int height = static_cast<int>(in.at("height").toInt());
-                w->setFixedSize(width, height);
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetSetMinimumSize - 设置最小大小
-class WidgetSetMinimumSizeNode final : public Node {
-public:
-    WidgetSetMinimumSizeNode() {
-        addInput("widget", DataType::Generic);
-        addInput("width", DataType::Integer);
-        addInput("height", DataType::Integer);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetSetMinimumSize"; }
-    std::string nodeTitle() const override { return "Set Min Size"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                int width = static_cast<int>(in.at("width").toInt());
-                int height = static_cast<int>(in.at("height").toInt());
-                w->setMinimumSize(width, height);
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetSetMaximumSize - 设置最大大小
-class WidgetSetMaximumSizeNode final : public Node {
-public:
-    WidgetSetMaximumSizeNode() {
-        addInput("widget", DataType::Generic);
-        addInput("width", DataType::Integer);
-        addInput("height", DataType::Integer);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetSetMaximumSize"; }
-    std::string nodeTitle() const override { return "Set Max Size"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                int width = static_cast<int>(in.at("width").toInt());
-                int height = static_cast<int>(in.at("height").toInt());
-                w->setMaximumSize(width, height);
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WindowSetTitle - 设置窗口标题
-class WindowSetTitleNode final : public Node {
-public:
-    WindowSetTitleNode() {
-        addInput("window", DataType::Generic);
-        addInput("title", DataType::String);
-        addOutput("window", DataType::Generic);
-    }
-    std::string typeName() const override { return "WindowSetTitle"; }
-    std::string nodeTitle() const override { return "Set Title"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("window");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                w->setWindowTitle(in.at("title").toString());
-                out["window"] = it->second;
-            }
-        }
-    }
-};
-
-/// WindowSetGeometry - 设置窗口几何属性
-class WindowSetGeometryNode final : public Node {
-public:
-    WindowSetGeometryNode() {
-        addInput("window", DataType::Generic);
-        addInput("x", DataType::Integer);
-        addInput("y", DataType::Integer);
-        addInput("width", DataType::Integer);
-        addInput("height", DataType::Integer);
-        addOutput("window", DataType::Generic);
-    }
-    std::string typeName() const override { return "WindowSetGeometry"; }
-    std::string nodeTitle() const override { return "Set Geometry"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("window");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                int x = static_cast<int>(in.at("x").toInt());
-                int y = static_cast<int>(in.at("y").toInt());
-                int width = static_cast<int>(in.at("width").toInt());
-                int height = static_cast<int>(in.at("height").toInt());
-                w->setGeometry(x, y, width, height);
-                out["window"] = it->second;
-            }
-        }
-    }
-};
-
-/// LabelSetText - 设置标签文本
-class LabelSetTextNode final : public Node {
-public:
-    LabelSetTextNode() {
-        addInput("label", DataType::Generic);
-        addInput("text", DataType::String);
-        addOutput("label", DataType::Generic);
-    }
-    std::string typeName() const override { return "LabelSetText"; }
-    std::string nodeTitle() const override { return "Set Text"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("label");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QLabel* label = qobject_cast<QLabel*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (label) {
-                label->setText(in.at("text").toString());
-                out["label"] = it->second;
-            }
-        }
-    }
-};
-
-/// ButtonSetText - 设置按钮文本
-class ButtonSetTextNode final : public Node {
-public:
-    ButtonSetTextNode() {
-        addInput("button", DataType::Generic);
-        addInput("text", DataType::String);
-        addOutput("button", DataType::Generic);
-    }
-    std::string typeName() const override { return "ButtonSetText"; }
-    std::string nodeTitle() const override { return "Set Text"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("button");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QPushButton* btn = qobject_cast<QPushButton*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (btn) {
-                btn->setText(in.at("text").toString());
-                out["button"] = it->second;
-            }
-        }
-    }
-};
-
-/// LineEditSetText - 设置行编辑器文本
-class LineEditSetTextNode final : public Node {
-public:
-    LineEditSetTextNode() {
-        addInput("lineEdit", DataType::Generic);
-        addInput("text", DataType::String);
-        addOutput("lineEdit", DataType::Generic);
-    }
-    std::string typeName() const override { return "LineEditSetText"; }
-    std::string nodeTitle() const override { return "Set Text"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("lineEdit");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QLineEdit* edit = qobject_cast<QLineEdit*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (edit) {
-                edit->setText(in.at("text").toString());
-                out["lineEdit"] = it->second;
-            }
-        }
-    }
-};
-
-/// LineEditGetText - 获取行编辑器文本
-class LineEditGetTextNode final : public Node {
-public:
-    LineEditGetTextNode() {
-        addInput("lineEdit", DataType::Generic);
-        addOutput("text", DataType::String);
-        addOutput("lineEdit", DataType::Generic);
-    }
-    std::string typeName() const override { return "LineEditGetText"; }
-    std::string nodeTitle() const override { return "Get Text"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("lineEdit");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QLineEdit* edit = qobject_cast<QLineEdit*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (edit) {
-                out["text"] = Variant(edit->text().toStdString());
-                out["lineEdit"] = it->second;
-            }
-        }
-    }
-};
-
-/// SliderSetValue - 设置滑块值
-class SliderSetValueNode final : public Node {
-public:
-    SliderSetValueNode() {
-        addInput("slider", DataType::Generic);
-        addInput("value", DataType::Integer);
-        addOutput("slider", DataType::Generic);
-    }
-    std::string typeName() const override { return "SliderSetValue"; }
-    std::string nodeTitle() const override { return "Set Value"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("slider");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QSlider* slider = qobject_cast<QSlider*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (slider) {
-                slider->setValue(static_cast<int>(in.at("value").toInt()));
-                out["slider"] = it->second;
-            }
-        }
-    }
-};
-
-/// SliderGetValue - 获取滑块值
-class SliderGetValueNode final : public Node {
-public:
-    SliderGetValueNode() {
-        addInput("slider", DataType::Generic);
-        addOutput("value", DataType::Integer);
-        addOutput("slider", DataType::Generic);
-    }
-    std::string typeName() const override { return "SliderGetValue"; }
-    std::string nodeTitle() const override { return "Get Value"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("slider");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QSlider* slider = qobject_cast<QSlider*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (slider) {
-                out["value"] = Variant(static_cast<int64_t>(slider->value()));
-                out["slider"] = it->second;
-            }
-        }
-    }
-};
-
-/// ProgressBarSetValue - 设置进度条值
-class ProgressBarSetValueNode final : public Node {
-public:
-    ProgressBarSetValueNode() {
-        addInput("progressBar", DataType::Generic);
-        addInput("value", DataType::Integer);
-        addOutput("progressBar", DataType::Generic);
-    }
-    std::string typeName() const override { return "ProgressBarSetValue"; }
-    std::string nodeTitle() const override { return "Set Value"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("progressBar");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QProgressBar* bar = qobject_cast<QProgressBar*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (bar) {
-                bar->setValue(static_cast<int>(in.at("value").toInt()));
-                out["progressBar"] = it->second;
-            }
-        }
-    }
-};
-
-/// CheckBoxSetChecked - 设置复选框选中状态
-class CheckBoxSetCheckedNode final : public Node {
-public:
-    CheckBoxSetCheckedNode() {
-        addInput("checkBox", DataType::Generic);
-        addInput("checked", DataType::Boolean);
-        addOutput("checkBox", DataType::Generic);
-    }
-    std::string typeName() const override { return "CheckBoxSetChecked"; }
-    std::string nodeTitle() const override { return "Set Checked"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("checkBox");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QCheckBox* cb = qobject_cast<QCheckBox*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (cb) {
-                cb->setChecked(in.at("checked").toBool());
-                out["checkBox"] = it->second;
-            }
-        }
-    }
-};
-
-/// CheckBoxIsChecked - 获取复选框选中状态
-class CheckBoxIsCheckedNode final : public Node {
-public:
-    CheckBoxIsCheckedNode() {
-        addInput("checkBox", DataType::Generic);
-        addOutput("checked", DataType::Boolean);
-        addOutput("checkBox", DataType::Generic);
-    }
-    std::string typeName() const override { return "CheckBoxIsChecked"; }
-    std::string nodeTitle() const override { return "Is Checked"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("checkBox");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QCheckBox* cb = qobject_cast<QCheckBox*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (cb) {
-                out["checked"] = Variant(cb->isChecked());
-                out["checkBox"] = it->second;
-            }
-        }
-    }
-};
-
-/// SpinBoxSetValue - 设置数值框值
-class SpinBoxSetValueNode final : public Node {
-public:
-    SpinBoxSetValueNode() {
-        addInput("spinBox", DataType::Generic);
-        addInput("value", DataType::Integer);
-        addOutput("spinBox", DataType::Generic);
-    }
-    std::string typeName() const override { return "SpinBoxSetValue"; }
-    std::string nodeTitle() const override { return "Set Value"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("spinBox");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QSpinBox* sb = qobject_cast<QSpinBox*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (sb) {
-                sb->setValue(static_cast<int>(in.at("value").toInt()));
-                out["spinBox"] = it->second;
-            }
-        }
-    }
-};
-
-/// SpinBoxGetValue - 获取数值框值
-class SpinBoxGetValueNode final : public Node {
-public:
-    SpinBoxGetValueNode() {
-        addInput("spinBox", DataType::Generic);
-        addOutput("value", DataType::Integer);
-        addOutput("spinBox", DataType::Generic);
-    }
-    std::string typeName() const override { return "SpinBoxGetValue"; }
-    std::string nodeTitle() const override { return "Get Value"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("spinBox");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QSpinBox* sb = qobject_cast<QSpinBox*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (sb) {
-                out["value"] = Variant(static_cast<int64_t>(sb->value()));
-                out["spinBox"] = it->second;
-            }
-        }
-    }
-};
-
-/// ComboBoxAddItem - 添加下拉框项
-class ComboBoxAddItemNode final : public Node {
-public:
-    ComboBoxAddItemNode() {
-        addInput("comboBox", DataType::Generic);
-        addInput("item", DataType::String);
-        addOutput("comboBox", DataType::Generic);
-    }
-    std::string typeName() const override { return "ComboBoxAddItem"; }
-    std::string nodeTitle() const override { return "Add Item"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("comboBox");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QComboBox* cb = qobject_cast<QComboBox*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (cb) {
-                cb->addItem(in.at("item").toString());
-                out["comboBox"] = it->second;
-            }
-        }
-    }
-};
-
-/// ComboBoxGetCurrentText - 获取下拉框当前文本
-class ComboBoxGetCurrentTextNode final : public Node {
-public:
-    ComboBoxGetCurrentTextNode() {
-        addInput("comboBox", DataType::Generic);
-        addOutput("text", DataType::String);
-        addOutput("comboBox", DataType::Generic);
-    }
-    std::string typeName() const override { return "ComboBoxGetCurrentText"; }
-    std::string nodeTitle() const override { return "Get Text"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("comboBox");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QComboBox* cb = qobject_cast<QComboBox*>(static_cast<QWidget*>(it->second.toPointer()));
-            if (cb) {
-                out["text"] = Variant(cb->currentText().toStdString());
-                out["comboBox"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetClose - 关闭窗口
-class WidgetCloseNode final : public Node {
-public:
-    WidgetCloseNode() {
-        addInput("widget", DataType::Generic);
-        addOutput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetClose"; }
-    std::string nodeTitle() const override { return "Close"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                w->close();
-                out["widget"] = it->second;
-            }
-        }
-    }
-};
-
-/// WidgetDelete - 删除控件
-class WidgetDeleteNode final : public Node {
-public:
-    WidgetDeleteNode() {
-        addInput("widget", DataType::Generic);
-    }
-    std::string typeName() const override { return "WidgetDelete"; }
-    std::string nodeTitle() const override { return "Delete"; }
-    void process(const VariantMap& in, VariantMap& out) override {
-        auto it = in.find("widget");
-        if (it != in.end() && it->second.type() == DataType::Pointer) {
-            QWidget* w = static_cast<QWidget*>(it->second.toPointer());
-            if (w) {
-                w->deleteLater();
-            }
-        }
+        out["widget"] = Variant(std::string("ProgressBar"));
     }
 };
 
@@ -1753,7 +839,7 @@ public:
     void process(const VariantMap& in, VariantMap& out) override {
         auto it = in.find("value");
         if (it != in.end()) {
-            qDebug().noquote() << "[QBlock Print]" << it->second.toString();
+            std::cout << "[QBlock Print] " << it->second.toString().toStdString() << std::endl;
             out["out"] = it->second;
         }
     }
@@ -1949,6 +1035,519 @@ public:
 };
 
 // ============================================================================
+// Container Nodes (std containers)
+// ============================================================================
+
+class StdVectorNode final : public Node {
+public:
+    StdVectorNode() {
+        addInput("size", DataType::Integer);
+        addInput("init", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("element", DataType::Generic);
+        addOutput("length", DataType::Integer);
+    }
+    std::string typeName() const override { return "StdVector"; }
+    std::string nodeTitle() const override { return "列表"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto sizeIt = in.find("size");
+        if (sizeIt != in.end() && sizeIt->second.isValid()) {
+            int64_t newSize = sizeIt->second.toInt();
+            if (newSize >= 0) {
+                values_.resize(static_cast<size_t>(newSize));
+            }
+        }
+        auto initIt = in.find("init");
+        if (initIt != in.end() && initIt->second.isValid()) {
+            if (values_.empty()) {
+                values_.push_back(initIt->second);
+            } else {
+                values_[0] = initIt->second;
+            }
+        }
+        out["container"] = Variant(static_cast<int64_t>(reinterpret_cast<intptr_t>(this)));
+        out["length"] = Variant(static_cast<int64_t>(values_.size()));
+        if (!values_.empty()) {
+            out["element"] = values_[0];
+        }
+    }
+    std::vector<Variant>& values() { return values_; }
+private:
+    std::vector<Variant> values_;
+};
+
+class StdVectorPushNode final : public Node {
+public:
+    StdVectorPushNode() {
+        addInput("container", DataType::Generic);
+        addInput("value1", DataType::Generic);
+        addInput("value2", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("length", DataType::Integer);
+    }
+    std::string typeName() const override { return "StdVectorPush"; }
+    std::string nodeTitle() const override { return "添加元素"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto contIt = in.find("container");
+        if (contIt != in.end() && contIt->second.isValid()) {
+            intptr_t ptr = static_cast<intptr_t>(contIt->second.toInt());
+            auto* vecNode = reinterpret_cast<StdVectorNode*>(ptr);
+            if (vecNode) {
+                auto val1It = in.find("value1");
+                if (val1It != in.end() && val1It->second.isValid()) {
+                    vecNode->values().push_back(val1It->second);
+                }
+                auto val2It = in.find("value2");
+                if (val2It != in.end() && val2It->second.isValid()) {
+                    vecNode->values().push_back(val2It->second);
+                }
+                out["container"] = contIt->second;
+                out["length"] = Variant(static_cast<int64_t>(vecNode->values().size()));
+            }
+        }
+    }
+};
+
+class StdQueueNode final : public Node {
+public:
+    StdQueueNode() {
+        addInput("size", DataType::Integer);
+        addInput("init", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("front", DataType::Generic);
+        addOutput("length", DataType::Integer);
+    }
+    std::string typeName() const override { return "StdQueue"; }
+    std::string nodeTitle() const override { return "队列"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto sizeIt = in.find("size");
+        if (sizeIt != in.end() && sizeIt->second.isValid()) {
+            int64_t newSize = sizeIt->second.toInt();
+            while (queue_.size() > static_cast<size_t>(newSize) && !queue_.empty()) {
+                queue_.pop();
+            }
+        }
+        auto initIt = in.find("init");
+        if (initIt != in.end() && initIt->second.isValid()) {
+            queue_.push(initIt->second);
+        }
+        out["container"] = Variant(static_cast<int64_t>(reinterpret_cast<intptr_t>(this)));
+        out["length"] = Variant(static_cast<int64_t>(queue_.size()));
+        if (!queue_.empty()) {
+            out["front"] = queue_.front();
+        }
+    }
+    std::queue<Variant>& queue() { return queue_; }
+private:
+    std::queue<Variant> queue_;
+};
+
+class StdQueuePushNode final : public Node {
+public:
+    StdQueuePushNode() {
+        addInput("container", DataType::Generic);
+        addInput("value", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("length", DataType::Integer);
+    }
+    std::string typeName() const override { return "StdQueuePush"; }
+    std::string nodeTitle() const override { return "入队"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto contIt = in.find("container");
+        if (contIt != in.end() && contIt->second.isValid()) {
+            intptr_t ptr = static_cast<intptr_t>(contIt->second.toInt());
+            auto* queueNode = reinterpret_cast<StdQueueNode*>(ptr);
+            if (queueNode) {
+                auto valIt = in.find("value");
+                if (valIt != in.end() && valIt->second.isValid()) {
+                    queueNode->queue().push(valIt->second);
+                }
+                out["container"] = contIt->second;
+                out["length"] = Variant(static_cast<int64_t>(queueNode->queue().size()));
+            }
+        }
+    }
+};
+
+class StdStackNode final : public Node {
+public:
+    StdStackNode() {
+        addInput("size", DataType::Integer);
+        addInput("init", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("top", DataType::Generic);
+        addOutput("length", DataType::Integer);
+    }
+    std::string typeName() const override { return "StdStack"; }
+    std::string nodeTitle() const override { return "栈"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto sizeIt = in.find("size");
+        if (sizeIt != in.end() && sizeIt->second.isValid()) {
+            int64_t newSize = sizeIt->second.toInt();
+            while (stack_.size() > static_cast<size_t>(newSize) && !stack_.empty()) {
+                stack_.pop();
+            }
+        }
+        auto initIt = in.find("init");
+        if (initIt != in.end() && initIt->second.isValid()) {
+            stack_.push(initIt->second);
+        }
+        out["container"] = Variant(static_cast<int64_t>(reinterpret_cast<intptr_t>(this)));
+        out["length"] = Variant(static_cast<int64_t>(stack_.size()));
+        if (!stack_.empty()) {
+            out["top"] = stack_.top();
+        }
+    }
+    std::stack<Variant>& stack() { return stack_; }
+private:
+    std::stack<Variant> stack_;
+};
+
+class StdStackPushNode final : public Node {
+public:
+    StdStackPushNode() {
+        addInput("container", DataType::Generic);
+        addInput("value", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("length", DataType::Integer);
+    }
+    std::string typeName() const override { return "StdStackPush"; }
+    std::string nodeTitle() const override { return "压栈"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto contIt = in.find("container");
+        if (contIt != in.end() && contIt->second.isValid()) {
+            intptr_t ptr = static_cast<intptr_t>(contIt->second.toInt());
+            auto* stackNode = reinterpret_cast<StdStackNode*>(ptr);
+            if (stackNode) {
+                auto valIt = in.find("value");
+                if (valIt != in.end() && valIt->second.isValid()) {
+                    stackNode->stack().push(valIt->second);
+                }
+                out["container"] = contIt->second;
+                out["length"] = Variant(static_cast<int64_t>(stackNode->stack().size()));
+            }
+        }
+    }
+};
+
+class StdDequeNode final : public Node {
+public:
+    StdDequeNode() {
+        addInput("size", DataType::Integer);
+        addInput("init", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("front", DataType::Generic);
+        addOutput("back", DataType::Generic);
+        addOutput("length", DataType::Integer);
+    }
+    std::string typeName() const override { return "StdDeque"; }
+    std::string nodeTitle() const override { return "双端队列"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto sizeIt = in.find("size");
+        if (sizeIt != in.end() && sizeIt->second.isValid()) {
+            int64_t newSize = sizeIt->second.toInt();
+            while (deque_.size() > static_cast<size_t>(newSize) && !deque_.empty()) {
+                deque_.pop_back();
+            }
+        }
+        auto initIt = in.find("init");
+        if (initIt != in.end() && initIt->second.isValid()) {
+            deque_.push_back(initIt->second);
+        }
+        out["container"] = Variant(static_cast<int64_t>(reinterpret_cast<intptr_t>(this)));
+        out["length"] = Variant(static_cast<int64_t>(deque_.size()));
+        if (!deque_.empty()) {
+            out["front"] = deque_.front();
+            out["back"] = deque_.back();
+        }
+    }
+    std::deque<Variant>& deque() { return deque_; }
+private:
+    std::deque<Variant> deque_;
+};
+
+class StdDequePushNode final : public Node {
+public:
+    StdDequePushNode() {
+        addInput("container", DataType::Generic);
+        addInput("value", DataType::Generic);
+        addInput("front", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("length", DataType::Integer);
+    }
+    std::string typeName() const override { return "StdDequePush"; }
+    std::string nodeTitle() const override { return "双端入队"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto contIt = in.find("container");
+        if (contIt != in.end() && contIt->second.isValid()) {
+            intptr_t ptr = static_cast<intptr_t>(contIt->second.toInt());
+            auto* dequeNode = reinterpret_cast<StdDequeNode*>(ptr);
+            if (dequeNode) {
+                auto frontIt = in.find("front");
+                if (frontIt != in.end() && frontIt->second.isValid()) {
+                    dequeNode->deque().push_front(frontIt->second);
+                }
+                auto valIt = in.find("value");
+                if (valIt != in.end() && valIt->second.isValid()) {
+                    dequeNode->deque().push_back(valIt->second);
+                }
+                out["container"] = contIt->second;
+                out["length"] = Variant(static_cast<int64_t>(dequeNode->deque().size()));
+            }
+        }
+    }
+};
+
+class StdSetNode final : public Node {
+public:
+    StdSetNode() {
+        addInput("init", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("length", DataType::Integer);
+        addOutput("contains", DataType::Boolean);
+    }
+    std::string typeName() const override { return "StdSet"; }
+    std::string nodeTitle() const override { return "集合"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto initIt = in.find("init");
+        if (initIt != in.end() && initIt->second.isValid()) {
+            set_.insert(initIt->second.toString().toStdString());
+        }
+        out["container"] = Variant(static_cast<int64_t>(reinterpret_cast<intptr_t>(this)));
+        out["length"] = Variant(static_cast<int64_t>(set_.size()));
+        out["contains"] = Variant(set_.size() > 0);
+    }
+    std::set<std::string>& set() { return set_; }
+private:
+    std::set<std::string> set_;
+};
+
+class StdSetInsertNode final : public Node {
+public:
+    StdSetInsertNode() {
+        addInput("container", DataType::Generic);
+        addInput("value", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("length", DataType::Integer);
+        addOutput("contains", DataType::Boolean);
+    }
+    std::string typeName() const override { return "StdSetInsert"; }
+    std::string nodeTitle() const override { return "插入集合"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto contIt = in.find("container");
+        if (contIt != in.end() && contIt->second.isValid()) {
+            intptr_t ptr = static_cast<intptr_t>(contIt->second.toInt());
+            auto* setNode = reinterpret_cast<StdSetNode*>(ptr);
+            if (setNode) {
+                auto valIt = in.find("value");
+                bool contained = false;
+                if (valIt != in.end() && valIt->second.isValid()) {
+                    std::string strVal = valIt->second.toString().toStdString();
+                    contained = setNode->set().count(strVal) > 0;
+                    setNode->set().insert(strVal);
+                }
+                out["container"] = contIt->second;
+                out["length"] = Variant(static_cast<int64_t>(setNode->set().size()));
+                out["contains"] = Variant(contained);
+            }
+        }
+    }
+};
+
+class StdUnorderedSetNode final : public Node {
+public:
+    StdUnorderedSetNode() {
+        addInput("init", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("length", DataType::Integer);
+        addOutput("contains", DataType::Boolean);
+    }
+    std::string typeName() const override { return "StdUnorderedSet"; }
+    std::string nodeTitle() const override { return "无序集合"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto initIt = in.find("init");
+        if (initIt != in.end() && initIt->second.isValid()) {
+            set_.insert(initIt->second.toString().toStdString());
+        }
+        out["container"] = Variant(static_cast<int64_t>(reinterpret_cast<intptr_t>(this)));
+        out["length"] = Variant(static_cast<int64_t>(set_.size()));
+        out["contains"] = Variant(set_.size() > 0);
+    }
+    std::unordered_set<std::string>& set() { return set_; }
+private:
+    std::unordered_set<std::string> set_;
+};
+
+class StdUnorderedSetInsertNode final : public Node {
+public:
+    StdUnorderedSetInsertNode() {
+        addInput("container", DataType::Generic);
+        addInput("value", DataType::Generic);
+        addOutput("container", DataType::Generic);
+        addOutput("length", DataType::Integer);
+        addOutput("contains", DataType::Boolean);
+    }
+    std::string typeName() const override { return "StdUnorderedSetInsert"; }
+    std::string nodeTitle() const override { return "插入无序集"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto contIt = in.find("container");
+        if (contIt != in.end() && contIt->second.isValid()) {
+            intptr_t ptr = static_cast<intptr_t>(contIt->second.toInt());
+            auto* setNode = reinterpret_cast<StdUnorderedSetNode*>(ptr);
+            if (setNode) {
+                auto valIt = in.find("value");
+                bool contained = false;
+                if (valIt != in.end() && valIt->second.isValid()) {
+                    std::string strVal = valIt->second.toString().toStdString();
+                    contained = setNode->set().count(strVal) > 0;
+                    setNode->set().insert(strVal);
+                }
+                out["container"] = contIt->second;
+                out["length"] = Variant(static_cast<int64_t>(setNode->set().size()));
+                out["contains"] = Variant(contained);
+            }
+        }
+    }
+};
+
+class StdPairNode final : public Node {
+public:
+    StdPairNode() {
+        addInput("first", DataType::Generic);
+        addInput("second", DataType::Generic);
+        addOutput("pair", DataType::Generic);
+        addOutput("first", DataType::Generic);
+        addOutput("second", DataType::Generic);
+    }
+    std::string typeName() const override { return "StdPair"; }
+    std::string nodeTitle() const override { return "配对"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto firstIt = in.find("first");
+        auto secondIt = in.find("second");
+        if (firstIt != in.end() && firstIt->second.isValid()) {
+            first_ = firstIt->second;
+        }
+        if (secondIt != in.end() && secondIt->second.isValid()) {
+            second_ = secondIt->second;
+        }
+        out["pair"] = Variant(static_cast<int64_t>(reinterpret_cast<intptr_t>(this)));
+        out["first"] = first_;
+        out["second"] = second_;
+    }
+private:
+    Variant first_;
+    Variant second_;
+};
+
+class StructNode final : public Node {
+public:
+    StructNode() {
+        addInput("field1", DataType::Generic);
+        addInput("field2", DataType::Generic);
+        addInput("field3", DataType::Generic);
+        addOutput("struct", DataType::Generic);
+        addOutput("field1", DataType::Generic);
+        addOutput("field2", DataType::Generic);
+        addOutput("field3", DataType::Generic);
+    }
+    std::string typeName() const override { return "Struct"; }
+    std::string nodeTitle() const override { return "结构体"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto it = in.find("field1");
+        if (it != in.end() && it->second.isValid()) field1_ = it->second;
+        it = in.find("field2");
+        if (it != in.end() && it->second.isValid()) field2_ = it->second;
+        it = in.find("field3");
+        if (it != in.end() && it->second.isValid()) field3_ = it->second;
+        out["struct"] = Variant(static_cast<int64_t>(reinterpret_cast<intptr_t>(this)));
+        out["field1"] = field1_;
+        out["field2"] = field2_;
+        out["field3"] = field3_;
+    }
+private:
+    Variant field1_, field2_, field3_;
+};
+
+class VoidNode final : public Node {
+public:
+    VoidNode() {
+        addInput("in", DataType::Generic);
+    }
+    std::string typeName() const override { return "Void"; }
+    std::string nodeTitle() const override { return "void"; }
+    void process(const VariantMap&, VariantMap&) override {}
+};
+
+class SortNode final : public Node {
+public:
+    SortNode() {
+        addInput("value", DataType::Generic);
+        addInput("ascending", DataType::Boolean);
+        addOutput("sorted", DataType::Generic);
+        addOutput("size", DataType::Integer);
+    }
+    std::string typeName() const override { return "Sort"; }
+    std::string nodeTitle() const override { return "sort"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        auto valIt = in.find("value");
+        if (valIt != in.end() && valIt->second.isValid()) {
+            values_.push_back(valIt->second);
+        }
+        bool ascending = true;
+        auto ascIt = in.find("ascending");
+        if (ascIt != in.end() && ascIt->second.isValid()) {
+            ascending = ascIt->second.toBool();
+        }
+        if (ascending) {
+            std::sort(values_.begin(), values_.end(), [](const Variant& a, const Variant& b) {
+                return a.toString() < b.toString();
+            });
+        } else {
+            std::sort(values_.begin(), values_.end(), [](const Variant& a, const Variant& b) {
+                return a.toString() > b.toString();
+            });
+        }
+        out["size"] = Variant(static_cast<int64_t>(values_.size()));
+        if (!values_.empty()) {
+            out["sorted"] = values_.front();
+        }
+    }
+private:
+    std::vector<Variant> values_;
+};
+
+// ============================================================================
+// Entry/Event Nodes
+// ============================================================================
+
+class InputBlockNode final : public Node {
+public:
+    InputBlockNode() {
+        addExecOutput("exec");
+        addOutput("value", DataType::Integer);
+    }
+    std::string typeName() const override { return "InputBlock"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        out["exec"] = Variant(true);
+        out["value"] = Variant(int64_t(0));
+    }
+};
+
+class EventBlockNode final : public Node {
+public:
+    EventBlockNode() {
+        addInput("condition", DataType::Boolean);
+        addExecOutput("exec");
+    }
+    std::string typeName() const override { return "EventBlock"; }
+    void process(const VariantMap& in, VariantMap& out) override {
+        if (in.at("condition").toBool()) {
+            out["exec"] = Variant(true);
+        }
+    }
+};
+
+// ============================================================================
 // Factory: create any builtin node by type name
 // ============================================================================
 
@@ -2004,35 +1603,26 @@ inline std::unique_ptr<Node> createBuiltinNode(const std::string& typeName) {
     if (typeName == "QtComboBox")       return std::make_unique<QtComboBoxNode>();
     if (typeName == "QtSpinBox")        return std::make_unique<QtSpinBoxNode>();
     if (typeName == "QtProgressBar")    return std::make_unique<QtProgressBarNode>();
-    // Qt Widget Function nodes
-    if (typeName == "WidgetResize")           return std::make_unique<WidgetResizeNode>();
-    if (typeName == "WidgetMove")             return std::make_unique<WidgetMoveNode>();
-    if (typeName == "WidgetShow")             return std::make_unique<WidgetShowNode>();
-    if (typeName == "WidgetHide")             return std::make_unique<WidgetHideNode>();
-    if (typeName == "WidgetSetEnabled")       return std::make_unique<WidgetSetEnabledNode>();
-    if (typeName == "WidgetSetVisible")       return std::make_unique<WidgetSetVisibleNode>();
-    if (typeName == "WidgetSetStyleSheet")    return std::make_unique<WidgetSetStyleSheetNode>();
-    if (typeName == "WidgetSetToolTip")       return std::make_unique<WidgetSetToolTipNode>();
-    if (typeName == "WidgetSetFixedSize")     return std::make_unique<WidgetSetFixedSizeNode>();
-    if (typeName == "WidgetSetMinimumSize")   return std::make_unique<WidgetSetMinimumSizeNode>();
-    if (typeName == "WidgetSetMaximumSize")   return std::make_unique<WidgetSetMaximumSizeNode>();
-    if (typeName == "WindowSetTitle")         return std::make_unique<WindowSetTitleNode>();
-    if (typeName == "WindowSetGeometry")      return std::make_unique<WindowSetGeometryNode>();
-    if (typeName == "LabelSetText")           return std::make_unique<LabelSetTextNode>();
-    if (typeName == "ButtonSetText")          return std::make_unique<ButtonSetTextNode>();
-    if (typeName == "LineEditSetText")        return std::make_unique<LineEditSetTextNode>();
-    if (typeName == "LineEditGetText")        return std::make_unique<LineEditGetTextNode>();
-    if (typeName == "SliderSetValue")         return std::make_unique<SliderSetValueNode>();
-    if (typeName == "SliderGetValue")         return std::make_unique<SliderGetValueNode>();
-    if (typeName == "ProgressBarSetValue")    return std::make_unique<ProgressBarSetValueNode>();
-    if (typeName == "CheckBoxSetChecked")     return std::make_unique<CheckBoxSetCheckedNode>();
-    if (typeName == "CheckBoxIsChecked")      return std::make_unique<CheckBoxIsCheckedNode>();
-    if (typeName == "SpinBoxSetValue")        return std::make_unique<SpinBoxSetValueNode>();
-    if (typeName == "SpinBoxGetValue")        return std::make_unique<SpinBoxGetValueNode>();
-    if (typeName == "ComboBoxAddItem")        return std::make_unique<ComboBoxAddItemNode>();
-    if (typeName == "ComboBoxGetCurrentText") return std::make_unique<ComboBoxGetCurrentTextNode>();
-    if (typeName == "WidgetClose")            return std::make_unique<WidgetCloseNode>();
-    if (typeName == "WidgetDelete")           return std::make_unique<WidgetDeleteNode>();
+    // Container nodes
+    if (typeName == "StdVector")         return std::make_unique<StdVectorNode>();
+    if (typeName == "StdVectorPush")     return std::make_unique<StdVectorPushNode>();
+    if (typeName == "StdQueue")          return std::make_unique<StdQueueNode>();
+    if (typeName == "StdQueuePush")      return std::make_unique<StdQueuePushNode>();
+    if (typeName == "StdStack")          return std::make_unique<StdStackNode>();
+    if (typeName == "StdStackPush")      return std::make_unique<StdStackPushNode>();
+    if (typeName == "StdDeque")          return std::make_unique<StdDequeNode>();
+    if (typeName == "StdDequePush")      return std::make_unique<StdDequePushNode>();
+    if (typeName == "StdSet")            return std::make_unique<StdSetNode>();
+    if (typeName == "StdSetInsert")      return std::make_unique<StdSetInsertNode>();
+    if (typeName == "StdUnorderedSet")   return std::make_unique<StdUnorderedSetNode>();
+    if (typeName == "StdUnorderedSetInsert") return std::make_unique<StdUnorderedSetInsertNode>();
+    if (typeName == "StdPair")           return std::make_unique<StdPairNode>();
+    if (typeName == "Struct")            return std::make_unique<StructNode>();
+    if (typeName == "Void")              return std::make_unique<VoidNode>();
+    if (typeName == "Sort")              return std::make_unique<SortNode>();
+    // Entry/Event nodes
+    if (typeName == "InputBlock")       return std::make_unique<InputBlockNode>();
+    if (typeName == "EventBlock")       return std::make_unique<EventBlockNode>();
     return nullptr;
 }
 

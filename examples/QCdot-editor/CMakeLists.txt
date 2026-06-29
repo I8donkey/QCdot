@@ -1,7 +1,7 @@
 # QCdot-editor Example - Visual programming editor application
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets)
 
-add_executable(QCdot-editor WIN32 main.cpp NodePalette.h)
+add_executable(QCdot-editor WIN32 main.cpp NodePalette.h ConsoleWidget.h ConsoleRedirector.h)
 
 target_link_libraries(QCdot-editor PRIVATE
     QBlockEditor

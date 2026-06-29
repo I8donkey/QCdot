@@ -8,5 +8,4 @@ target_include_directories(QBlockNodes INTERFACE
 
 target_link_libraries(QBlockNodes INTERFACE
     QBlockEngine
-    Qt6::Widgets
 )

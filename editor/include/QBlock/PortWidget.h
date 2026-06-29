@@ -42,6 +42,7 @@ private:
     NodeWidget* nodeWidget_;
     QList<ConnectionWidget*> connections_;
     bool hoverDeleteButton_ = false;
+    static constexpr float kRadius = 6.0f;
     static constexpr float kDeleteButtonSize = 14.0f;
 };
 

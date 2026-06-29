@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QClipboard>
 #include <QMimeData>
+#include <QKeyEvent>
 
 namespace QBlock {
 
@@ -32,6 +33,7 @@ void saveSettings() {
     QJsonObject obj;
     obj["language"] = Translator::currentLanguage();
     obj["theme"] = (ThemeManager::instance().currentTheme() == ThemeMode::Dark) ? QStringLiteral("dark") : QStringLiteral("light");
+    obj["qtCompatible"] = (NodeEditor::qtCompatibleModeGlobal()) ? true : false;
     
     QFile file(path);
     if (file.open(QIODevice::WriteOnly)) {
@@ -58,6 +60,9 @@ void loadSettings() {
             ThemeManager::instance().setTheme(ThemeMode::Light);
         }
     }
+    if (obj.contains("qtCompatible")) {
+        NodeEditor::setQtCompatibleModeGlobal(obj["qtCompatible"].toBool());
+    }
 }
 
 NodeEditor::NodeEditor(QWidget* parent)
@@ -74,6 +79,39 @@ NodeEditor::NodeEditor(QWidget* parent)
     scene_->setNodeCreator([this](const std::string& type, float x, float y) {
         return addNode(type, x, y);
     });
+
+    // Connect scene signals for keyboard shortcuts
+    connect(scene_, &EditorScene::undoRequested, this, &NodeEditor::undoAction);
+    connect(scene_, &EditorScene::redoRequested, this, &NodeEditor::redoAction);
+    connect(scene_, &EditorScene::selectAllRequested, this, &NodeEditor::selectAllNodes);
+
+    // Set focus policy to receive keyboard events
+    setFocusPolicy(Qt::StrongFocus);
+}
+
+void NodeEditor::keyPressEvent(QKeyEvent* event) {
+    // Ctrl+Z: Undo
+    if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_Z) {
+        undoAction();
+        event->accept();
+        return;
+    }
+
+    // Ctrl+Y: Redo
+    if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_Y) {
+        redoAction();
+        event->accept();
+        return;
+    }
+
+    // Ctrl+A: Select All
+    if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_A) {
+        selectAllNodes();
+        event->accept();
+        return;
+    }
+
+    QWidget::keyPressEvent(event);
 }
 
 NodeEditor::~NodeEditor() = default;
@@ -149,6 +187,17 @@ void NodeEditor::setupSettingsMenu(QToolBar* toolbar) {
 
     settingsMenu_->addSeparator();
 
+    // Qt Compatible mode
+    qtCompatAct_ = settingsMenu_->addAction(QStringLiteral("Qt兼容"));
+    qtCompatAct_->setCheckable(true);
+    qtCompatAct_->setChecked(qtCompatibleModeGlobal());
+    connect(qtCompatAct_, &QAction::triggered, this, [this](bool checked) {
+        setQtCompatibleModeGlobal(checked);
+        saveSettings();
+    });
+
+    settingsMenu_->addSeparator();
+
     // Export to C++ action
     auto* exportAct = settingsMenu_->addAction(Translator::tr("toolbar.export_cpp"));
     connect(exportAct, &QAction::triggered, this, [this]() {
@@ -205,9 +254,6 @@ void NodeEditor::setupToolbar() {
 
     toolbar_->addSeparator();
 
-    auto* execAct = toolbar_->addAction(Translator::tr("toolbar.run_dataflow"));
-    connect(execAct, &QAction::triggered, this, &NodeEditor::executeDataflow);
-
     auto* execSigAct = toolbar_->addAction(Translator::tr("toolbar.run_signal"));
     connect(execSigAct, &QAction::triggered, this, [this]() { executeSignal(); });
 
@@ -226,74 +272,24 @@ void NodeEditor::setupToolbar() {
     pasteAct->setShortcut(QKeySequence::Paste);
     connect(pasteAct, &QAction::triggered, this, &NodeEditor::pasteNodes);
 
-    auto* undoAct = toolbar_->addAction(Translator::tr("toolbar.undo"));
-    undoAct->setShortcut(QKeySequence::Undo);
-    connect(undoAct, &QAction::triggered, this, [this]() {
-        if (undoStack_.canUndo()) {
-            undoStack_.undo();
-            rebuildFromGraph();
-            emit graphModified();
-        }
-    });
-
-    auto* redoAct = toolbar_->addAction(Translator::tr("toolbar.redo"));
-    redoAct->setShortcut(QKeySequence::Redo);
-    connect(redoAct, &QAction::triggered, this, [this]() {
-        if (undoStack_.canRedo()) {
-            undoStack_.redo();
-            rebuildFromGraph();
-            emit graphModified();
-        }
-    });
-
-    auto* selectAllAct = toolbar_->addAction(Translator::tr("toolbar.select_all"));
-    selectAllAct->setShortcut(QKeySequence::SelectAll);
-    connect(selectAllAct, &QAction::triggered, this, [this]() {
-        scene_->selectAll();
-    });
-
-    // File operation shortcuts
-    auto* newFileAct = new QAction(this);
-    newFileAct->setShortcut(QKeySequence::New);
-    connect(newFileAct, &QAction::triggered, this, &NodeEditor::newGraph);
-    addAction(newFileAct);
-
-    auto* openFileAct = new QAction(this);
-    openFileAct->setShortcut(QKeySequence::Open);
-    connect(openFileAct, &QAction::triggered, this, [this]() {
-        QString path = QFileDialog::getOpenFileName(
-            this, Translator::tr("dialog.open_title"), {},
-            Translator::tr("dialog.filter"));
-        if (!path.isEmpty()) loadFromFile(path);
-    });
-    addAction(openFileAct);
-
-    auto* saveFileAct = new QAction(this);
-    saveFileAct->setShortcut(QKeySequence::Save);
-    connect(saveFileAct, &QAction::triggered, this, [this]() {
-        QString path = QFileDialog::getSaveFileName(
-            this, Translator::tr("dialog.save_title"), {},
-            Translator::tr("dialog.filter"));
-        if (!path.isEmpty()) saveToFile(path);
-    });
-    addAction(saveFileAct);
+    auto* consoleAct = toolbar_->addAction(Translator::tr("toolbar.console"));
+    consoleAct->setCheckable(true);
+    consoleAct->setChecked(true);
+    connect(consoleAct, &QAction::triggered, this, &NodeEditor::toggleConsoleRequested);
 
     // Settings menu on the right side
     setupSettingsMenu(toolbar_);
 
     // Refresh toolbar labels when language changes
-    Translator::onLanguageChanged([this, newAct, loadAct, saveAct, execAct, execSigAct, fitAct, copyAct, pasteAct, undoAct, redoAct, selectAllAct]() {
+    Translator::onLanguageChanged([this, newAct, loadAct, saveAct, execSigAct, fitAct, copyAct, pasteAct, consoleAct]() {
         newAct->setText(Translator::tr("toolbar.new"));
         loadAct->setText(Translator::tr("toolbar.open"));
         saveAct->setText(Translator::tr("toolbar.save"));
-        execAct->setText(Translator::tr("toolbar.run_dataflow"));
         execSigAct->setText(Translator::tr("toolbar.run_signal"));
         fitAct->setText(Translator::tr("toolbar.fit_view"));
         copyAct->setText(Translator::tr("toolbar.copy"));
         pasteAct->setText(Translator::tr("toolbar.paste"));
-        undoAct->setText(Translator::tr("toolbar.undo"));
-        redoAct->setText(Translator::tr("toolbar.redo"));
-        selectAllAct->setText(Translator::tr("toolbar.select_all"));
+        consoleAct->setText(Translator::tr("toolbar.console"));
         for (auto* item : scene_->items()) {
             if (auto* nw = dynamic_cast<NodeWidget*>(item)) {
                 nw->update();
@@ -334,7 +330,8 @@ bool NodeEditor::loadFromFile(const QString& filePath) {
         return false;
     }
 
-    *graph() = std::move(*result);
+    *graph() = std::move(result->graph);
+    setQtCompatibleMode(result->qtCompatible);
     scene_->setGraph(graph());
     emit graphModified();
     fitToScreen();
@@ -345,7 +342,7 @@ bool NodeEditor::saveToFile(const QString& filePath) const {
     if (!graph()) return false;
 
     scene_->syncPositionsToGraph();
-    QByteArray data = Serializer::toBytes(*graph());
+    QByteArray data = Serializer::toBytes(*graph(), qtCompatibleModeGlobal());
 
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly)) {
@@ -745,6 +742,7 @@ Node* NodeEditor::addNode(const std::string& typeName, float x, float y) {
     node->setPosition(x, y);
     auto* ptr = g->addNode(std::move(node));
     scene_->addNodeWidget(ptr);
+    pushUndoState();
     emit graphModified();
     return ptr;
 }
@@ -849,6 +847,162 @@ void NodeEditor::pasteNodes() {
     for (const auto& [type, pos] : nodesToPaste) {
         QPointF newPos = pos - minPos + offset;
         addNode(type, static_cast<float>(newPos.x()), static_cast<float>(newPos.y()));
+    }
+}
+
+void NodeEditor::pushUndoState() {
+    if (auto* graph = scene_->graph()) {
+        QByteArray state = Serializer::toBytes(*graph, qtCompatibleModeGlobal());
+        undoStack_.push_back(state);
+        redoStack_.clear();
+        if (undoStack_.size() > kMaxUndoStackSize) {
+            undoStack_.erase(undoStack_.begin());
+        }
+    }
+}
+
+void NodeEditor::undoAction() {
+    if (undoStack_.empty()) return;
+
+    // Save current state to redo stack
+    if (auto* graph = scene_->graph()) {
+        redoStack_.push_back(Serializer::toBytes(*graph, qtCompatibleModeGlobal()));
+    }
+
+    // Restore previous state
+    auto state = undoStack_.back();
+    undoStack_.pop_back();
+
+    // Clear scene and rebuild from saved state
+    if (auto* graph = scene_->graph()) {
+        scene_->clear();
+        auto restored = Serializer::fromBytes(state, nodeFactory_);
+        if (restored) {
+            *graph = std::move(restored->graph);
+            setQtCompatibleMode(restored->qtCompatible);
+            // Recreate all node widgets
+            for (const auto& node : graph->nodes()) {
+                scene_->addNodeWidget(node.get());
+            }
+            // Recreate all connection widgets
+            for (const auto& conn : graph->connections()) {
+                auto* sourcePort = conn->source();
+                auto* targetPort = conn->target();
+                if (sourcePort && targetPort) {
+                    auto* sourceNode = sourcePort->parentNode();
+                    auto* targetNode = targetPort->parentNode();
+                    if (sourceNode && targetNode) {
+                        // Use findNodeWidgetById since pointers differ after restore
+                        auto* sourceNodeWidget = scene_->findNodeWidgetById(sourceNode->id());
+                        auto* targetNodeWidget = scene_->findNodeWidgetById(targetNode->id());
+                        if (sourceNodeWidget && targetNodeWidget) {
+                            // Find port widgets by matching port names
+                            PortWidget* sourcePortWidget = nullptr;
+                            PortWidget* targetPortWidget = nullptr;
+                            for (auto* pw : sourceNodeWidget->outputPorts()) {
+                                if (pw->port() && pw->port()->name() == sourcePort->name()) {
+                                    sourcePortWidget = pw;
+                                    break;
+                                }
+                            }
+                            for (auto* pw : targetNodeWidget->inputPorts()) {
+                                if (pw->port() && pw->port()->name() == targetPort->name()) {
+                                    targetPortWidget = pw;
+                                    break;
+                                }
+                            }
+                            if (sourcePortWidget && targetPortWidget) {
+                                scene_->addConnectionWidget(sourcePortWidget, targetPortWidget);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void NodeEditor::redoAction() {
+    if (redoStack_.empty()) return;
+
+    // Save current state to undo stack
+    if (auto* graph = scene_->graph()) {
+        undoStack_.push_back(Serializer::toBytes(*graph, qtCompatibleModeGlobal()));
+    }
+
+    // Restore next state
+    auto state = redoStack_.back();
+    redoStack_.pop_back();
+
+    // Clear scene and rebuild from saved state
+    if (auto* graph = scene_->graph()) {
+        scene_->clear();
+        auto restored = Serializer::fromBytes(state, nodeFactory_);
+        if (restored) {
+            *graph = std::move(restored->graph);
+            setQtCompatibleMode(restored->qtCompatible);
+            // Recreate all node widgets
+            for (const auto& node : graph->nodes()) {
+                scene_->addNodeWidget(node.get());
+            }
+            // Recreate all connection widgets
+            for (const auto& conn : graph->connections()) {
+                auto* sourcePort = conn->source();
+                auto* targetPort = conn->target();
+                if (sourcePort && targetPort) {
+                    auto* sourceNode = sourcePort->parentNode();
+                    auto* targetNode = targetPort->parentNode();
+                    if (sourceNode && targetNode) {
+                        // Use findNodeWidgetById since pointers differ after restore
+                        auto* sourceNodeWidget = scene_->findNodeWidgetById(sourceNode->id());
+                        auto* targetNodeWidget = scene_->findNodeWidgetById(targetNode->id());
+                        if (sourceNodeWidget && targetNodeWidget) {
+                            // Find port widgets by matching port names
+                            PortWidget* sourcePortWidget = nullptr;
+                            PortWidget* targetPortWidget = nullptr;
+                            for (auto* pw : sourceNodeWidget->outputPorts()) {
+                                if (pw->port() && pw->port()->name() == sourcePort->name()) {
+                                    sourcePortWidget = pw;
+                                    break;
+                                }
+                            }
+                            for (auto* pw : targetNodeWidget->inputPorts()) {
+                                if (pw->port() && pw->port()->name() == targetPort->name()) {
+                                    targetPortWidget = pw;
+                                    break;
+                                }
+                            }
+                            if (sourcePortWidget && targetPortWidget) {
+                                scene_->addConnectionWidget(sourcePortWidget, targetPortWidget);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void NodeEditor::selectAllNodes() {
+    for (auto* item : scene_->items()) {
+        item->setSelected(true);
+    }
+}
+
+bool NodeEditor::qtCompatibleModeGlobal() {
+    static bool s_qtCompatible = false;
+    return s_qtCompatible;
+}
+
+void NodeEditor::setQtCompatibleModeGlobal(bool enabled) {
+    static bool s_qtCompatible = false;
+    s_qtCompatible = enabled;
+}
+
+void NodeEditor::setQtCompatibleMode(bool enabled) {
+    setQtCompatibleModeGlobal(enabled);
+    if (qtCompatAct_) {
+        qtCompatAct_->setChecked(enabled);
     }
 }
 

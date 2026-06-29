@@ -10,6 +10,8 @@
 #include <QApplication>
 #include <QTimer>
 #include <QMimeData>
+#include <QMenu>
+#include <QGraphicsView>
 
 namespace QBlock {
 
@@ -131,6 +133,17 @@ NodeWidget* EditorScene::findNodeWidget(Node* node) const {
     return it != nodeWidgetMap_.end() ? it->second : nullptr;
 }
 
+NodeWidget* EditorScene::findNodeWidgetById(uint64_t id) const {
+    for (auto* item : items()) {
+        if (auto* nodeWidget = dynamic_cast<NodeWidget*>(item)) {
+            if (nodeWidget->node() && nodeWidget->node()->id() == id) {
+                return nodeWidget;
+            }
+        }
+    }
+    return nullptr;
+}
+
 ConnectionWidget* EditorScene::addConnectionWidget(PortWidget* source, PortWidget* target) {
     if (!source || !target) return nullptr;
     if (source->port()->direction() != PortDirection::Output) return nullptr;
@@ -145,8 +158,22 @@ ConnectionWidget* EditorScene::addConnectionWidget(PortWidget* source, PortWidge
         if (!conn) return nullptr;
     }
 
+    if (!target->connections().empty()) {
+        auto* existingConn = target->connections().front();
+        removeConnectionWidget(existingConn);
+    }
+
     auto* widget = new ConnectionWidget(source, target, conn);
     addItem(widget);
+    connect(widget, &ConnectionWidget::arrowDragged, this, [this](ConnectionWidget* conn, const QPointF& scenePos) {
+        dragSourcePort_ = conn->sourcePort();
+        pickedUpConnection_ = conn;
+        conn->setVisible(false);
+        
+        tempConnection_ = new TempConnectionWidget(dragSourcePort_);
+        addItem(tempConnection_);
+        tempConnection_->updateEndPoint(scenePos);
+    });
     return widget;
 }
 
@@ -191,6 +218,28 @@ void EditorScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
         if (!itemAtPos || !dynamic_cast<InlineNodePicker*>(itemAtPos)) {
             closeInlinePicker();
         }
+    }
+
+    if (event->button() == Qt::RightButton) {
+        showContextMenu(event->scenePos());
+        return;
+    }
+
+    if (event->button() == Qt::MiddleButton) {
+        if (typeLister_ && nodeCreator_) {
+            closeInlinePicker();
+            inlinePicker_ = new InlineNodePicker(this, event->scenePos(), DataType::Generic, typeLister_);
+            connect(inlinePicker_, &InlineNodePicker::nodeSelected, this, [this, event](const std::string& type) {
+                if (!type.empty()) {
+                    float nx = static_cast<float>(event->scenePos().x());
+                    float ny = static_cast<float>(event->scenePos().y());
+                    nodeCreator_(type, nx, ny);
+                }
+                closeInlinePicker();
+            });
+        }
+        event->accept();
+        return;
     }
 
     if (event->button() != Qt::LeftButton) {
@@ -347,11 +396,13 @@ void EditorScene::showInlinePicker(const QPointF& scenePos) {
     closeInlinePicker();
 
     DataType srcType = DataType::Generic;
+    QPointF sourcePortPos;
     if (dragSourcePort_) {
         srcType = dragSourcePort_->port()->type();
+        sourcePortPos = dragSourcePort_->mapToScene(QPointF(0, 0));
     }
 
-    inlinePicker_ = new InlineNodePicker(this, scenePos, srcType, typeLister_);
+    inlinePicker_ = new InlineNodePicker(this, scenePos, srcType, typeLister_, sourcePortPos);
 
     connect(inlinePicker_, &InlineNodePicker::nodeSelected, this, [this, scenePos](const std::string& type) {
         if (!type.empty()) {
@@ -389,6 +440,41 @@ void EditorScene::closeInlinePicker() {
     }
 }
 
+void EditorScene::showContextMenu(const QPointF& scenePos) {
+    QMenu menu;
+
+    QAction* addNodeAct = menu.addAction(Translator::tr("context.add_node"));
+    QAction* clearAct = menu.addAction(Translator::tr("context.clear"));
+    menu.addSeparator();
+    QAction* undoAct = menu.addAction(Translator::tr("context.undo"));
+    QAction* redoAct = menu.addAction(Translator::tr("context.redo"));
+    QAction* selectAllAct = menu.addAction(Translator::tr("context.select_all"));
+
+    connect(addNodeAct, &QAction::triggered, this, [this, scenePos]() {
+        showInlinePicker(scenePos);
+    });
+
+    connect(clearAct, &QAction::triggered, this, [this]() {
+        clear();
+        emit graphModified();
+    });
+
+    connect(undoAct, &QAction::triggered, this, &EditorScene::requestUndo);
+    connect(redoAct, &QAction::triggered, this, &EditorScene::requestRedo);
+    connect(selectAllAct, &QAction::triggered, this, &EditorScene::requestSelectAll);
+
+    QGraphicsView* view = nullptr;
+    for (QGraphicsView* v : views()) {
+        view = v;
+        break;
+    }
+
+    if (view) {
+        QPoint screenPos = view->mapToGlobal(view->mapFromScene(scenePos));
+        menu.exec(screenPos);
+    }
+}
+
 void EditorScene::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
         // Collect items to delete first (to avoid iterator invalidation)
@@ -411,6 +497,27 @@ void EditorScene::keyPressEvent(QKeyEvent* event) {
         }
         clearSelection();
         emit graphModified();
+        return;
+    }
+
+    // Ctrl+Z: Undo
+    if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_Z) {
+        requestUndo();
+        event->accept();
+        return;
+    }
+
+    // Ctrl+Y: Redo
+    if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_Y) {
+        requestRedo();
+        event->accept();
+        return;
+    }
+
+    // Ctrl+A: Select All
+    if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_A) {
+        requestSelectAll();
+        event->accept();
         return;
     }
 

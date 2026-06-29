@@ -1,7 +1,9 @@
 #include <QBlock/ConnectionWidget.h>
 #include <QBlock/PortWidget.h>
+#include <QBlock/ThemeManager.h>
 #include <QPainter>
 #include <QtMath>
+#include <QGraphicsSceneMouseEvent>
 
 namespace QBlock {
 
@@ -57,31 +59,113 @@ void ConnectionWidget::setTarget(PortWidget* target) {
 }
 
 void ConnectionWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
-    QColor lineColor = QColor(200, 200, 200);
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    QColor lineColor = ThemeManager::connectionLine();
     if (source_ && source_->port()) {
         lineColor = source_->port()->color();
     }
 
-    QPen pen(lineColor, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPainterPath p = path();
+    
+    // Draw glow effect when hovered or selected
     if (isUnderMouse() || isSelected()) {
-        pen.setWidth(4.0);
-        pen.setColor(lineColor.lighter(140));
+        QPen glowPen(lineColor, 8.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        glowPen.setColor(QColor(lineColor.red(), lineColor.green(), lineColor.blue(), 40));
+        painter->setPen(glowPen);
+        painter->drawPath(p);
     }
+
+    // Main line with gradient
+    QLinearGradient grad(p.pointAtPercent(0), p.pointAtPercent(1));
+    grad.setColorAt(0, lineColor.lighter(110));
+    grad.setColorAt(1, lineColor.darker(110));
+    
+    QPen pen(grad, isUnderMouse() || isSelected() ? 3.0 : 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     painter->setPen(pen);
     painter->setBrush(Qt::NoBrush);
-    painter->setRenderHint(QPainter::Antialiasing);
-    painter->drawPath(path());
+    painter->drawPath(p);
 
-    // Draw small arrow dot near target end
+    // Draw arrowhead near target end
     if (target_) {
-        QPointF p = path().pointAtPercent(0.95);
+        QPointF targetPoint = p.pointAtPercent(0.95);
+        QPointF prevPoint = p.pointAtPercent(0.88);
+        
+        // Calculate direction vector
+        QPointF dir = targetPoint - prevPoint;
+        double length = sqrt(dir.x() * dir.x() + dir.y() * dir.y());
+        if (length < 0.001) return;
+        
+        // Normalize direction
+        QPointF unitDir = dir / length;
+        
+        // Perpendicular vector for arrow wings
+        QPointF perp(-unitDir.y(), unitDir.x());
+        
+        // Arrow dimensions
+        double arrowSize = 7.0;
+        double arrowWingSpan = 4.0;
+        
+        // Arrow points
+        QPointF arrowTip = targetPoint;
+        QPointF arrowLeft = arrowTip - arrowSize * unitDir + arrowWingSpan * perp;
+        QPointF arrowRight = arrowTip - arrowSize * unitDir - arrowWingSpan * perp;
+        
+        // Draw arrow triangle
+        QPainterPath arrowPath;
+        arrowPath.moveTo(arrowTip);
+        arrowPath.lineTo(arrowLeft);
+        arrowPath.lineTo(arrowRight);
+        arrowPath.closeSubpath();
+        
         painter->setBrush(lineColor);
         painter->setPen(Qt::NoPen);
-        painter->drawEllipse(p, 3.5, 3.5);
+        painter->drawPath(arrowPath);
     }
 }
 
-// ---- TempConnectionWidget ----
+void ConnectionWidget::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+    if (!target_) {
+        QGraphicsPathItem::mousePressEvent(event);
+        return;
+    }
+
+    QPainterPath p = path();
+    QPointF targetPoint = p.pointAtPercent(0.95);
+    QPointF prevPoint = p.pointAtPercent(0.88);
+    
+    QPointF dir = targetPoint - prevPoint;
+    double length = sqrt(dir.x() * dir.x() + dir.y() * dir.y());
+    if (length < 0.001) {
+        QGraphicsPathItem::mousePressEvent(event);
+        return;
+    }
+    
+    QPointF unitDir = dir / length;
+    QPointF perp(-unitDir.y(), unitDir.x());
+    
+    double arrowSize = 7.0;
+    double arrowWingSpan = 4.0;
+    
+    QPointF arrowTip = targetPoint;
+    QPointF arrowLeft = arrowTip - arrowSize * unitDir + arrowWingSpan * perp;
+    QPointF arrowRight = arrowTip - arrowSize * unitDir - arrowWingSpan * perp;
+    
+    QPainterPath arrowPath;
+    arrowPath.moveTo(arrowTip);
+    arrowPath.lineTo(arrowLeft);
+    arrowPath.lineTo(arrowRight);
+    arrowPath.closeSubpath();
+    
+    QPointF localPos = event->pos();
+    if (arrowPath.contains(localPos)) {
+        emit arrowDragged(this, event->scenePos());
+        event->accept();
+        return;
+    }
+    
+    QGraphicsPathItem::mousePressEvent(event);
+}
 
 TempConnectionWidget::TempConnectionWidget(PortWidget* source, QGraphicsItem* parent)
     : QGraphicsPathItem(parent)

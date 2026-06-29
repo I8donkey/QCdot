@@ -26,7 +26,6 @@ public:
     explicit Variant(std::vector<uint8_t> v)
         : type_(DataType::Binary), storage_(QByteArray(reinterpret_cast<const char*>(v.data()),
                                                        static_cast<int>(v.size()))) {}
-    explicit Variant(void* v)          : type_(DataType::Pointer), storage_(v) {}
 
     Variant(const Variant&) = default;
     Variant& operator=(const Variant&) = default;
@@ -37,13 +36,27 @@ public:
     DataType type() const { return type_; }
     bool isValid() const { return type_ != DataType::None; }
 
-    // Value accessors
-    int64_t  toInt()    const { return holds<int64_t>()  ? get<int64_t>()  : 0; }
-    double   toFloat()  const { return holds<double>()   ? get<double>()   : 0.0; }
-    bool     toBool()   const { return holds<bool>()     ? get<bool>()     : false; }
+    // Value accessors (with cross-type conversion)
+    int64_t  toInt()    const {
+        if (holds<int64_t>()) return get<int64_t>();
+        if (holds<double>())  return static_cast<int64_t>(get<double>());
+        if (holds<bool>())    return get<bool>() ? 1 : 0;
+        return 0;
+    }
+    double   toFloat()  const {
+        if (holds<double>())  return get<double>();
+        if (holds<int64_t>()) return static_cast<double>(get<int64_t>());
+        if (holds<bool>())    return get<bool>() ? 1.0 : 0.0;
+        return 0.0;
+    }
+    bool     toBool()   const {
+        if (holds<bool>())    return get<bool>();
+        if (holds<int64_t>()) return get<int64_t>() != 0;
+        if (holds<double>())  return get<double>() != 0.0;
+        return false;
+    }
     QString  toString() const;
     QByteArray toBinary() const;
-    void*    toPointer() const { return holds<void*>()    ? get<void*>()    : nullptr; }
 
     // Convert to QVariant for Qt integration
     QVariant toQVariant() const;
@@ -56,7 +69,7 @@ public:
     bool operator!=(const Variant& other) const { return !(*this == other); }
 
 private:
-    using Storage = std::variant<int64_t, double, bool, QString, QByteArray, void*>;
+    using Storage = std::variant<int64_t, double, bool, QString, QByteArray>;
 
     DataType type_;
     Storage  storage_;
@@ -78,7 +91,6 @@ inline QString Variant::toString() const {
         case DataType::Boolean:  return get<bool>() ? QStringLiteral("true") : QStringLiteral("false");
         case DataType::String:   return get<QString>();
         case DataType::Binary:   return QStringLiteral("[Binary: %1 bytes]").arg(get<QByteArray>().size());
-        case DataType::Pointer:  return QStringLiteral("[Pointer: 0x%1]").arg(reinterpret_cast<quintptr>(get<void*>()), 0, 16);
         default:                 return {};
     }
 }
@@ -96,7 +108,6 @@ inline QVariant Variant::toQVariant() const {
         case DataType::Boolean:  return QVariant(toBool());
         case DataType::String:   return QVariant(toString());
         case DataType::Binary:   return QVariant(toBinary());
-        case DataType::Pointer:  return QVariant::fromValue(get<void*>());
         default:                 return {};
     }
 }
@@ -123,8 +134,6 @@ inline Variant Variant::fromQVariant(const QVariant& v) {
 
 inline bool Variant::operator==(const Variant& other) const {
     if (type_ != other.type_) return false;
-    if (type_ == DataType::Pointer)
-        return get<void*>() == other.get<void*>();
     return storage_ == other.storage_;
 }
 

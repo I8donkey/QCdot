@@ -21,53 +21,57 @@ void ThemeManager::onThemeChanged(ThemeCallback cb) {
     s_callbacks.push_back(std::move(cb));
 }
 
-// ---- Dark theme colors ----
+// ---- One Dark inspired theme colors ----
 namespace {
-    constexpr auto kDarkBg              = QColor(28, 28, 34);
-    constexpr auto kDarkGridMinor       = QColor(40, 40, 50);
-    constexpr auto kDarkGridMajor       = QColor(50, 50, 60);
-    constexpr auto kDarkPanelBg         = QColor(37, 37, 45);
-    constexpr auto kDarkPanelBorder     = QColor(60, 60, 70);
-    constexpr auto kDarkTextPrimary     = QColor(220, 220, 220);
-    constexpr auto kDarkTextSecondary   = QColor(150, 150, 150);
-    constexpr auto kDarkNodeBg          = QColor(40, 40, 50);
-    constexpr auto kDarkNodeBgSelected  = QColor(55, 55, 70);
-    constexpr auto kDarkNodeBorder      = QColor(70, 70, 80);
-    constexpr auto kDarkNodeBorderSel   = QColor(100, 140, 255);
-    constexpr auto kDarkNodeHdrFrom     = QColor(60, 60, 80);
-    constexpr auto kDarkNodeHdrTo       = QColor(45, 45, 60);
-    constexpr auto kDarkToolbarBg       = QColor(51, 51, 51);
-    constexpr auto kDarkToolbarBtn      = QColor(68, 68, 68);
-    constexpr auto kDarkToolbarBtnHover = QColor(85, 85, 85);
-    constexpr auto kDarkDialogBg        = QColor(37, 37, 45);
-    constexpr auto kDarkDialogBorder    = QColor(60, 60, 70);
-    constexpr auto kDarkListBg          = QColor(35, 38, 49);
-    constexpr auto kDarkListItemHover   = QColor(46, 58, 79);
-    constexpr auto kDarkListSelected    = QColor(58, 74, 106);
-    constexpr auto kDarkConnectionLine  = QColor(180, 180, 190);
+    constexpr auto kDarkBg              = QColor(40, 44, 52);
+    constexpr auto kDarkGridMinor       = QColor(52, 58, 68);
+    constexpr auto kDarkGridMajor       = QColor(64, 71, 83);
+    constexpr auto kDarkPanelBg         = QColor(33, 37, 43);
+    constexpr auto kDarkPanelBorder     = QColor(52, 58, 68);
+    constexpr auto kDarkTextPrimary     = QColor(171, 178, 191);
+    constexpr auto kDarkTextSecondary   = QColor(92, 99, 112);
+    constexpr auto kDarkTextDim         = QColor(76, 83, 96);
+    constexpr auto kDarkNodeBg          = QColor(40, 44, 52);
+    constexpr auto kDarkNodeBgSelected  = QColor(62, 68, 81);
+    constexpr auto kDarkNodeBorder      = QColor(52, 58, 68);
+    constexpr auto kDarkNodeBorderSel   = QColor(97, 175, 239);
+    constexpr auto kDarkNodeHdrFrom     = QColor(52, 58, 68);
+    constexpr auto kDarkNodeHdrTo       = QColor(40, 44, 52);
+    constexpr auto kDarkToolbarBg       = QColor(33, 37, 43);
+    constexpr auto kDarkToolbarBtn      = QColor(52, 58, 68);
+    constexpr auto kDarkToolbarBtnHover = QColor(64, 71, 83);
+    constexpr auto kDarkDialogBg        = QColor(33, 37, 43);
+    constexpr auto kDarkDialogBorder    = QColor(52, 58, 68);
+    constexpr auto kDarkListBg          = QColor(33, 37, 43);
+    constexpr auto kDarkListItemHover   = QColor(46, 52, 64);
+    constexpr auto kDarkListSelected    = QColor(62, 68, 81);
+    constexpr auto kDarkConnectionLine  = QColor(92, 99, 112);
+    constexpr auto kDarkShadow          = QColor(0, 0, 0, 40);
 
-    constexpr auto kLightBg             = QColor(240, 240, 245);
-    constexpr auto kLightGridMinor      = QColor(220, 220, 230);
-    constexpr auto kLightGridMajor      = QColor(200, 200, 210);
-    constexpr auto kLightPanelBg        = QColor(250, 250, 252);
-    constexpr auto kLightPanelBorder    = QColor(200, 200, 210);
-    constexpr auto kLightTextPrimary    = QColor(40, 40, 50);
-    constexpr auto kLightTextSecondary  = QColor(120, 120, 130);
-    constexpr auto kLightNodeBg         = QColor(245, 245, 250);
-    constexpr auto kLightNodeBgSelected = QColor(230, 235, 255);
-    constexpr auto kLightNodeBorder     = QColor(200, 200, 210);
-    constexpr auto kLightNodeBorderSel  = QColor(80, 130, 255);
-    constexpr auto kLightNodeHdrFrom    = QColor(220, 225, 240);
-    constexpr auto kLightNodeHdrTo      = QColor(235, 238, 248);
-    constexpr auto kLightToolbarBg      = QColor(230, 230, 235);
-    constexpr auto kLightToolbarBtn     = QColor(215, 215, 225);
-    constexpr auto kLightToolbarBtnHover= QColor(200, 200, 215);
-    constexpr auto kLightDialogBg       = QColor(250, 250, 252);
-    constexpr auto kLightDialogBorder   = QColor(200, 200, 210);
-    constexpr auto kLightListBg         = QColor(245, 245, 250);
-    constexpr auto kLightListItemHover  = QColor(220, 230, 245);
-    constexpr auto kLightListSelected   = QColor(180, 200, 255);
-    constexpr auto kLightConnectionLine = QColor(100, 100, 120);
+    constexpr auto kLightBg             = QColor(245, 247, 250);
+    constexpr auto kLightGridMinor      = QColor(228, 231, 238);
+    constexpr auto kLightGridMajor      = QColor(209, 213, 221);
+    constexpr auto kLightPanelBg        = QColor(255, 255, 255);
+    constexpr auto kLightPanelBorder    = QColor(209, 213, 221);
+    constexpr auto kLightTextPrimary    = QColor(38, 42, 50);
+    constexpr auto kLightTextSecondary  = QColor(100, 107, 120);
+    constexpr auto kLightTextDim        = QColor(156, 163, 175);
+    constexpr auto kLightNodeBg         = QColor(255, 255, 255);
+    constexpr auto kLightNodeBgSelected = QColor(219, 233, 254);
+    constexpr auto kLightNodeBorder     = QColor(209, 213, 221);
+    constexpr auto kLightNodeBorderSel  = QColor(59, 130, 246);
+    constexpr auto kLightNodeHdrFrom    = QColor(240, 243, 248);
+    constexpr auto kLightNodeHdrTo      = QColor(250, 251, 253);
+    constexpr auto kLightToolbarBg      = QColor(245, 247, 250);
+    constexpr auto kLightToolbarBtn     = QColor(228, 231, 238);
+    constexpr auto kLightToolbarBtnHover= QColor(209, 213, 221);
+    constexpr auto kLightDialogBg       = QColor(255, 255, 255);
+    constexpr auto kLightDialogBorder   = QColor(209, 213, 221);
+    constexpr auto kLightListBg         = QColor(250, 251, 253);
+    constexpr auto kLightListItemHover  = QColor(239, 242, 247);
+    constexpr auto kLightListSelected   = QColor(219, 233, 254);
+    constexpr auto kLightConnectionLine = QColor(100, 107, 120);
+    constexpr auto kLightShadow         = QColor(0, 0, 0, 15);
 }
 
 QColor ThemeManager::background() {
@@ -90,6 +94,9 @@ QColor ThemeManager::textPrimary() {
 }
 QColor ThemeManager::textSecondary() {
     return instance().theme_ == ThemeMode::Dark ? kDarkTextSecondary : kLightTextSecondary;
+}
+QColor ThemeManager::textDim() {
+    return instance().theme_ == ThemeMode::Dark ? kDarkTextDim : kLightTextDim;
 }
 QColor ThemeManager::nodeBg() {
     return instance().theme_ == ThemeMode::Dark ? kDarkNodeBg : kLightNodeBg;
@@ -145,6 +152,10 @@ QColor ThemeManager::connectionLine() {
 
 QColor ThemeManager::accentColor() {
     return instance().theme_ == ThemeMode::Dark ? kDarkNodeBorderSel : kLightNodeBorderSel;
+}
+
+QColor ThemeManager::shadow() {
+    return instance().theme_ == ThemeMode::Dark ? kDarkShadow : kLightShadow;
 }
 
 } // namespace QBlock

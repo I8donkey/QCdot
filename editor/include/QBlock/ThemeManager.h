@@ -34,6 +34,7 @@ public:
     static QColor panelBorder();
     static QColor textPrimary();
     static QColor textSecondary();
+    static QColor textDim();
     static QColor nodeBg();
     static QColor nodeBgSelected();
     static QColor nodeBorder();
@@ -50,6 +51,7 @@ public:
     static QColor listItemSelected();
     static QColor connectionLine();
     static QColor accentColor();
+    static QColor shadow();
 
 private:
     ThemeManager() = default;

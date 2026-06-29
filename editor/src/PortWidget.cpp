@@ -127,9 +127,38 @@ QPainterPath PortWidget::shape() const {
 
 void PortWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
     QColor c = port_->color();
-    painter->setBrush(QBrush(isUnderMouse() ? c.lighter(150) : c));
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    // Glow effect when hovered
+    if (isUnderMouse()) {
+        QRadialGradient glowGrad(rect().center(), kRadius * 2);
+        glowGrad.setColorAt(0, c.lighter(200));
+        glowGrad.setColorAt(0.5, c.lighter(150));
+        glowGrad.setColorAt(1, QColor(c.red(), c.green(), c.blue(), 0));
+        painter->setBrush(glowGrad);
+        painter->setPen(Qt::NoPen);
+        painter->drawEllipse(rect().adjusted(-4, -4, 4, 4));
+    }
+
+    // Outer ring
     painter->setPen(QPen(c.darker(150), 1.5));
+    painter->setBrush(Qt::NoBrush);
     painter->drawEllipse(rect());
+
+    // Inner fill with gradient
+    QRadialGradient fillGrad(rect().center(), kRadius);
+    fillGrad.setColorAt(0, c.lighter(130));
+    fillGrad.setColorAt(1, c.darker(110));
+    painter->setBrush(fillGrad);
+    painter->setPen(Qt::NoPen);
+    painter->drawEllipse(rect().adjusted(1, 1, -1, -1));
+
+    // Highlight spot
+    QRadialGradient highlightGrad(QPointF(rect().left() + 2, rect().top() + 2), kRadius / 2);
+    highlightGrad.setColorAt(0, QColor(255, 255, 255, 80));
+    highlightGrad.setColorAt(1, QColor(255, 255, 255, 0));
+    painter->setBrush(highlightGrad);
+    painter->drawEllipse(rect().adjusted(1, 1, -1, -1));
 
     QString label;
     QString prefix = QStringLiteral("port.");
@@ -163,7 +192,7 @@ void PortWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidg
         }
     }
 
-    QFontMetrics fm(QFont("Consolas", 8));
+    QFontMetrics fm(QFont("Segoe UI", 8));
     int textX = 10;
     
     // Draw delete button for removable input ports (on the right side of label)
@@ -172,29 +201,34 @@ void PortWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidg
         float buttonY = -kDeleteButtonSize / 2 - 1;
         QRectF buttonRect(buttonX, buttonY, kDeleteButtonSize, kDeleteButtonSize);
         
+        // Button shadow
+        QRectF shadowRect = buttonRect.translated(1, 1);
+        painter->setBrush(QColor(0, 0, 0, 30));
+        painter->setPen(Qt::NoPen);
+        painter->drawRoundedRect(shadowRect, 4, 4);
+        
         // Draw button background with gradient effect
-        QRadialGradient gradient(buttonRect.center(), kDeleteButtonSize);
+        QLinearGradient gradient(buttonRect.topLeft(), buttonRect.bottomLeft());
         if (hoverDeleteButton_) {
-            gradient.setColorAt(0, QColor(255, 80, 80));
-            gradient.setColorAt(1, QColor(200, 50, 50));
+            gradient.setColorAt(0, QColor(239, 68, 68));
+            gradient.setColorAt(1, QColor(220, 38, 38));
         } else {
-            gradient.setColorAt(0, QColor(180, 60, 60));
-            gradient.setColorAt(1, QColor(140, 40, 40));
+            gradient.setColorAt(0, QColor(179, 68, 68));
+            gradient.setColorAt(1, QColor(153, 27, 27));
         }
         painter->setBrush(gradient);
         painter->setPen(QPen(QColor(100, 30, 30), 1));
         painter->drawRoundedRect(buttonRect, 4, 4);
         
-        // Draw × symbol with shadow
+        // Draw × symbol with slight shadow
         painter->setFont(QFont("Segoe UI", 11, QFont::Bold));
-        QColor shadowColor(0, 0, 0, 80);
-        painter->setPen(shadowColor);
-        painter->drawText(buttonRect.adjusted(1, 1, 1, 1), Qt::AlignCenter, QStringLiteral("×"));
+        painter->setPen(QColor(0, 0, 0, 30));
+        painter->drawText(buttonRect.adjusted(0, 1, 0, 1), Qt::AlignCenter, QStringLiteral("×"));
         painter->setPen(Qt::white);
         painter->drawText(buttonRect, Qt::AlignCenter, QStringLiteral("×"));
     }
 
-    painter->setFont(QFont("Consolas", 8));
+    painter->setFont(QFont("Segoe UI", 8));
     painter->setPen(ThemeManager::textPrimary());
     if (port_->isInput()) {
         painter->drawText(QPointF(textX, 4), label);

@@ -3,13 +3,14 @@
 
 #include <QBlock/Connection.h>
 #include <QGraphicsPathItem>
+#include <QObject>
 
 namespace QBlock {
 
 class PortWidget;
 
-/// Visual bezier curve connection between two ports.
-class ConnectionWidget final : public QGraphicsPathItem {
+class ConnectionWidget final : public QObject, public QGraphicsPathItem {
+    Q_OBJECT
 public:
     ConnectionWidget(PortWidget* source, PortWidget* target, Connection* conn = nullptr,
                      QGraphicsItem* parent = nullptr);
@@ -26,6 +27,10 @@ public:
 
 protected:
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+
+signals:
+    void arrowDragged(ConnectionWidget* conn, const QPointF& scenePos);
 
 private:
     PortWidget* source_;

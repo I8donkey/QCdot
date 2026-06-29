@@ -7,6 +7,7 @@
 #include <QBlock/ThemeManager.h>
 #include <QGraphicsScene>
 #include <QGraphicsProxyWidget>
+#include <QGraphicsPathItem>
 #include <QListWidget>
 #include <QLineEdit>
 #include <QVBoxLayout>
@@ -22,17 +23,22 @@ public:
     using TypeLister = std::function<std::vector<std::string>()>;
 
     InlineNodePicker(QGraphicsScene* scene, const QPointF& pos,
-                     DataType filterType, TypeLister typeLister)
+                     DataType filterType, TypeLister typeLister,
+                     QPointF sourcePortPos = QPointF())
         : QGraphicsProxyWidget(nullptr)
         , filterType_(filterType)
         , typeLister_(std::move(typeLister))
+        , sourcePortPos_(sourcePortPos)
+        , hasSourcePort_(sourcePortPos != QPointF())
     {
         setPos(pos);
-        // Ensure picker is always on top
         setZValue(1000);
+        setFlag(QGraphicsItem::ItemIsMovable, true);
+        setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
 
         auto* widget = new QWidget();
         widget->setFixedSize(280, 360);
+        widget->setAttribute(Qt::WA_TranslucentBackground, true);
 
         auto* layout = new QVBoxLayout(widget);
         layout->setContentsMargins(6, 6, 6, 6);
@@ -45,14 +51,19 @@ public:
         list_ = new QListWidget(widget);
         list_->setIconSize(QSize(32, 32));
         list_->setSpacing(4);
-        list_->setViewMode(QListView::IconMode);
+        list_->setViewMode(QListView::ListMode);
         list_->setResizeMode(QListView::Adjust);
         list_->setMovement(QListView::Static);
-        list_->setGridSize(QSize(60, 60));
         layout->addWidget(list_, 1);
 
         setWidget(widget);
         scene->addItem(this);
+
+        if (hasSourcePort_) {
+            dashedLine_ = new QGraphicsPathItem(this);
+            dashedLine_->setZValue(-1);
+            updateDashedLine();
+        }
 
         applyThemeStyle();
 
@@ -88,32 +99,67 @@ public:
 
     std::string selectedType() const { return selectedType_; }
 
+    QVariant itemChange(GraphicsItemChange change, const QVariant& value) {
+        if (change == QGraphicsItem::ItemPositionChange) {
+            updateDashedLine();
+        }
+        return QGraphicsProxyWidget::itemChange(change, value);
+    }
+
 signals:
     void nodeSelected(const std::string& type);
 
 private:
     void applyThemeStyle() {
         bool isDark = (ThemeManager::instance().currentTheme() == ThemeMode::Dark);
-        QColor bg = ThemeManager::dialogBg();
-        QColor border = ThemeManager::dialogBorder();
-        QColor listBg = ThemeManager::listBg();
-        QColor itemHover = ThemeManager::listItemHover();
-        QColor itemSel = ThemeManager::listItemSelected();
-        QColor text = ThemeManager::textPrimary();
+        QColor bg(38, 40, 52, 200);
+        QColor border(100, 100, 115, 200);
+        QColor listBg(45, 48, 62, 180);
+        QColor itemHover(60, 64, 80, 200);
+        QColor itemSel(80, 120, 200, 200);
+        QColor text(220, 220, 240);
 
         QString style = QString(
-            "QWidget { background: %1; border: 1px solid %2; border-radius: 8px; }"
-            "QLineEdit { background: %3; color: %4; border: 1px solid %2; "
+            "QWidget { background: rgba(%1, %2, %3, %4); border: 1px solid rgba(%5, %6, %7, %8); border-radius: 8px; }"
+            "QLineEdit { background: rgba(%9, %10, %11, %12); color: %13; border: 1px solid rgba(%14, %15, %16, %17); "
             "  padding: 4px 8px; border-radius: 4px; }"
-            "QListWidget { background: %3; color: %4; border: 1px solid %2; "
+            "QListWidget { background: rgba(%9, %10, %11, %12); color: %13; border: 1px solid rgba(%14, %15, %16, %17); "
             "  border-radius: 4px; padding: 4px; }"
             "QListWidget::item { border-radius: 4px; padding: 4px; }"
-            "QListWidget::item:selected { background: %5; color: #fff; }"
-            "QListWidget::item:hover { background: %6; }"
-        ).arg(bg.name(), border.name(), listBg.name(), text.name(),
-              itemSel.name(), itemHover.name());
+            "QListWidget::item:selected { background: rgba(%18, %19, %20, %21); color: #fff; }"
+            "QListWidget::item:hover { background: rgba(%22, %23, %24, %25); }"
+        ).arg(bg.red()).arg(bg.green()).arg(bg.blue()).arg(bg.alpha())
+         .arg(border.red()).arg(border.green()).arg(border.blue()).arg(border.alpha())
+         .arg(listBg.red()).arg(listBg.green()).arg(listBg.blue()).arg(listBg.alpha())
+         .arg(text.name())
+         .arg(border.red()).arg(border.green()).arg(border.blue()).arg(border.alpha())
+         .arg(itemSel.red()).arg(itemSel.green()).arg(itemSel.blue()).arg(itemSel.alpha())
+         .arg(itemHover.red()).arg(itemHover.green()).arg(itemHover.blue()).arg(itemHover.alpha());
 
         widget()->setStyleSheet(style);
+
+        if (dashedLine_) {
+            QColor lineColor = colorForType(filterType_);
+            QPen pen(lineColor);
+            pen.setStyle(Qt::DashLine);
+            pen.setWidth(2);
+            dashedLine_->setPen(pen);
+        }
+    }
+
+    void updateDashedLine() {
+        if (!dashedLine_ || !hasSourcePort_) return;
+
+        QPointF widgetPos = pos();
+        QRectF widgetRect = boundingRect();
+
+        QPointF pickerEdge = widgetPos + QPointF(widgetRect.width() / 2, widgetRect.top());
+
+        QPainterPath path;
+        path.moveTo(sourcePortPos_);
+        path.lineTo(pickerEdge);
+
+        dashedLine_->setPath(path);
     }
 
     void populateList() {
@@ -151,6 +197,7 @@ private:
 
             auto* item = new QListWidgetItem(list_);
             item->setIcon(QIcon(QBlock::createNodeIcon(typeName)));
+            item->setText(display);
             item->setToolTip(display);
             item->setData(Qt::UserRole, QString::fromStdString(typeName));
         }
@@ -161,6 +208,9 @@ private:
     DataType filterType_ = DataType::Generic;
     TypeLister typeLister_;
     std::string selectedType_;
+    QPointF sourcePortPos_;
+    bool hasSourcePort_ = false;
+    QGraphicsPathItem* dashedLine_ = nullptr;
 };
 
 } // namespace QBlock

@@ -11,6 +11,11 @@
 
 namespace QBlock {
 
+struct GraphLoadResult {
+    NodeGraph graph;
+    bool qtCompatible = false;
+};
+
 /// JSON serialization for saving/loading node graphs.
 /// Default storage uses qCompress with a 4-byte magic header.
 class Serializer final {
@@ -21,9 +26,10 @@ public:
     static constexpr quint32 kMagicUncompressed = 0x51424C4A; // "QBLJ"
 
     /// Serialize a graph to a QJsonDocument.
-    static QJsonDocument toJson(const NodeGraph& graph) {
+    static QJsonDocument toJson(const NodeGraph& graph, bool qtCompatible = false) {
         QJsonObject root;
         root[QStringLiteral("version")] = 1;
+        root[QStringLiteral("qtCompatible")] = qtCompatible;
 
         QJsonArray nodesArr;
         for (const auto& node : graph.nodes()) {
@@ -73,11 +79,15 @@ public:
 
     /// Deserialize a graph from a QJsonDocument.
     template <typename Factory>
-    static std::optional<NodeGraph> fromJson(const QJsonDocument& doc, Factory nodeFactory) {
+    static std::optional<GraphLoadResult> fromJson(const QJsonDocument& doc, Factory nodeFactory) {
         if (!doc.isObject()) return std::nullopt;
 
         QJsonObject root = doc.object();
-        NodeGraph graph;
+        GraphLoadResult result;
+
+        if (root.contains(QStringLiteral("qtCompatible"))) {
+            result.qtCompatible = root[QStringLiteral("qtCompatible")].toBool();
+        }
 
         QJsonArray nodesArr = root[QStringLiteral("nodes")].toArray();
         std::unordered_map<uint64_t, Node*> nodeMap;
@@ -98,7 +108,7 @@ public:
             if (obj.contains(QStringLiteral("label")))
                 node->setLabel(obj[QStringLiteral("label")].toString().toStdString());
 
-            auto* ptr = graph.addNode(std::move(node));
+            auto* ptr = result.graph.addNode(std::move(node));
             ptr->setId(id);
             nodeMap[id] = ptr;
         }
@@ -125,16 +135,16 @@ public:
             }
 
             if (srcPortPtr && tgtPortPtr)
-                graph.connect(srcPortPtr, tgtPortPtr);
+                result.graph.connect(srcPortPtr, tgtPortPtr);
         }
 
-        return graph;
+        return result;
     }
 
     /// Serialize to compressed bytes (default).
     /// Format: [4-byte magic] [4-byte original size] [qCompressed JSON]
-    static QByteArray toBytes(const NodeGraph& graph) {
-        QJsonDocument doc = toJson(graph);
+    static QByteArray toBytes(const NodeGraph& graph, bool qtCompatible = false) {
+        QJsonDocument doc = toJson(graph, qtCompatible);
         QByteArray json = doc.toJson(QJsonDocument::Compact);
         QByteArray compressed = qCompress(json);
 
@@ -155,7 +165,7 @@ public:
 
     /// Deserialize from bytes (auto-detects compressed vs uncompressed).
     template <typename Factory>
-    static std::optional<NodeGraph> fromBytes(const QByteArray& data, Factory nodeFactory) {
+    static std::optional<GraphLoadResult> fromBytes(const QByteArray& data, Factory nodeFactory) {
         if (data.isEmpty()) return std::nullopt;
 
         // Check for compressed magic header

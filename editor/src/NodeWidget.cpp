@@ -121,41 +121,64 @@ void NodeWidget::paint(QPainter* painter, const QStyleOptionGraphicsItem* option
     QRectF r(0, 0, kWidth, boundingRect().height() - kMargin * 2 - kShadowOffset);
     painter->setRenderHint(QPainter::Antialiasing);
 
-    // Shadow
-    QRectF shadowRect = r.translated(kShadowOffset, kShadowOffset);
-    painter->setBrush(QColor(0, 0, 0, 60));
-    painter->setPen(Qt::NoPen);
-    painter->drawRoundedRect(shadowRect, 6, 6);
-
-    // Background (theme-aware)
     bool selected = (option->state & QStyle::State_Selected);
+
+    // Soft shadow
+    QRectF shadowRect = r.translated(kShadowOffset, kShadowOffset);
+    QColor shadowColor = ThemeManager::shadow();
+    QPainterPath shadowPath;
+    shadowPath.addRoundedRect(shadowRect, 8, 8);
+    painter->setBrush(shadowColor);
+    painter->setPen(Qt::NoPen);
+    painter->drawPath(shadowPath);
+
+    // Background with subtle gradient
     QColor bgColor = selected ? ThemeManager::nodeBgSelected() : ThemeManager::nodeBg();
-    painter->setBrush(bgColor);
+    QLinearGradient bgGrad(r.topLeft(), r.bottomLeft());
+    bgGrad.setColorAt(0, bgColor.lighter(102));
+    bgGrad.setColorAt(1, bgColor.darker(102));
+    painter->setBrush(bgGrad);
     painter->setPen(QPen(selected ? ThemeManager::nodeBorderSelected() : ThemeManager::nodeBorder(),
                          selected ? 2 : 1));
-    painter->drawRoundedRect(r, 6, 6);
+    painter->drawRoundedRect(r, 8, 8);
 
-    // Header bar (theme-aware)
+    // Header bar with gradient
     QRectF header(r.x(), r.y(), r.width(), kHeaderHeight);
-    QLinearGradient grad(header.topLeft(), header.bottomLeft());
-    grad.setColorAt(0, ThemeManager::nodeHeaderFrom());
-    grad.setColorAt(1, ThemeManager::nodeHeaderTo());
-    painter->setBrush(grad);
+    QLinearGradient headerGrad(header.topLeft(), header.bottomLeft());
+    headerGrad.setColorAt(0, ThemeManager::nodeHeaderFrom());
+    headerGrad.setColorAt(1, ThemeManager::nodeHeaderTo());
+    painter->setBrush(headerGrad);
     painter->setPen(Qt::NoPen);
-    painter->drawRoundedRect(header, 6, 6);
+    painter->drawRoundedRect(header, 8, 8);
     painter->drawRect(QRectF(header.x(), header.y() + 4, header.width(), header.height() - 4));
+
+    // Header highlight
+    QRectF highlightRect(header.x(), header.y(), header.width(), 2);
+    QLinearGradient highlightGrad(highlightRect.topLeft(), highlightRect.bottomLeft());
+    highlightGrad.setColorAt(0, QColor(255, 255, 255, 15));
+    highlightGrad.setColorAt(1, QColor(255, 255, 255, 0));
+    painter->setBrush(highlightGrad);
+    painter->drawRect(highlightRect);
 
     // Title (translated)
     QString titleKey = QStringLiteral("node.") + QString::fromStdString(node_->typeName());
     QString title = Translator::tr(titleKey);
     if (title == titleKey) {
-        // fallback to type name if no translation found
         title = QString::fromStdString(node_->typeName());
     }
 
-    painter->setFont(QFont("Consolas", 10, QFont::Bold));
+    painter->setFont(QFont("Segoe UI", 10, QFont::Bold));
     painter->setPen(ThemeManager::textPrimary());
     painter->drawText(header.adjusted(8, 0, -8, 0), Qt::AlignVCenter, title);
+    
+    // Selection glow effect
+    if (selected) {
+        QPen glowPen(ThemeManager::nodeBorderSelected(), 4);
+        glowPen.setColor(QColor(97, 175, 239, 40));
+        painter->setPen(glowPen);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRoundedRect(r.adjusted(-2, -2, 2, 2), 10, 10);
+    }
     
     // Draw "+" button for container nodes
     if (isContainerNode()) {

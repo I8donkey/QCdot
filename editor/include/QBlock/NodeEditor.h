@@ -22,6 +22,11 @@ public:
     explicit NodeEditor(QWidget* parent = nullptr);
     ~NodeEditor() override;
 
+    bool qtCompatibleMode() const { return qtCompatibleMode_; }
+    void setQtCompatibleMode(bool enabled);
+    static bool qtCompatibleModeGlobal();
+    static void setQtCompatibleModeGlobal(bool enabled);
+
     // ---- Graph management ----
 
     NodeGraph* graph() const { return scene_->graph(); }
@@ -68,14 +73,28 @@ public:
 
     void copyNodes();
     void pasteNodes();
+    void undoAction();
+    void redoAction();
+    void selectAllNodes();
+
+private:
+    // Undo/Redo support
+    void pushUndoState();
+    std::vector<QByteArray> undoStack_;
+    std::vector<QByteArray> redoStack_;
+    static constexpr int kMaxUndoStackSize = 50;
 
 public slots:
     void setLanguage(const QString& lang);
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
 
 signals:
     void nodeSelected(Node* node);
     void graphModified();
     void languageChanged();
+    void toggleConsoleRequested(bool checked);
 
 private:
     void setupUI();
@@ -93,7 +112,9 @@ private:
     QToolBar* toolbar_;
     QAction* langAct_ = nullptr;
     QAction* themeAct_ = nullptr;
+    QAction* qtCompatAct_ = nullptr;
     QMenu* settingsMenu_ = nullptr;
+    bool qtCompatibleMode_ = false;
 };
 
 } // namespace QBlock

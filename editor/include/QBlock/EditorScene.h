@@ -39,6 +39,7 @@ public:
     NodeWidget* addNodeWidget(Node* node);
     void removeNodeWidget(Node* node);
     NodeWidget* findNodeWidget(Node* node) const;
+    NodeWidget* findNodeWidgetById(uint64_t id) const;
 
     // ---- Connection operations ----
 
@@ -59,11 +60,23 @@ public:
 
     /// Show the inline node picker at the given scene position.
     void showInlinePicker(const QPointF& scenePos);
+    void showContextMenu(const QPointF& scenePos);
 
 signals:
     void nodeSelected(Node* node);
     void connectionCreated(Connection* conn);
     void graphModified();
+    void undoRequested();
+    void redoRequested();
+    void selectAllRequested();
+
+public:
+    /// Request undo action
+    void requestUndo() { emit undoRequested(); }
+    /// Request redo action
+    void requestRedo() { emit redoRequested(); }
+    /// Request select all nodes
+    void requestSelectAll() { emit selectAllRequested(); }
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;

@@ -1,6 +1,6 @@
 # QCdot
 
-![Static Badge](https://img.shields.io/badge/License-MIT-green)
+![Static Badge](https://img.shields.io/badge/License-LGPL2.1-green)
 
 [中文版本](README_zh.md)
 
